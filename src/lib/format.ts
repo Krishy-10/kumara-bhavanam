@@ -31,3 +31,12 @@ export function assertRupees(amount: number): void {
     throw new Error(`Money must be whole rupees, got ${amount}`);
   }
 }
+
+const inrCompact = new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** "₹40K", "₹1.2L", "₹1.5Cr" for chart axes. Exact figures stay in labels and tables. */
+export function formatRupeesCompact(amount: number): string {
+  assertRupees(amount);
+  const sign = amount < 0 ? '−' : '';
+  return `${sign}₹${inrCompact.format(Math.abs(amount))}`;
+}

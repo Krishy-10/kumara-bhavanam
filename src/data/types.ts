@@ -119,3 +119,79 @@ export interface BookingResult {
   bill_no: string;
   guest_id: string;
 }
+
+export type DocType = 'aadhaar' | 'passport' | 'driving_licence' | 'voter_id' | 'other';
+
+/** That an ID was seen. Never the ID itself: type and last 4 only. */
+export interface IdCheckRow {
+  id: string;
+  stay_id: string;
+  doc_type: DocType;
+  last4: string | null;
+  checked_by: string;
+  checked_at: string;
+  created_by: string;
+}
+
+export type TemplateKind = 'thank_you' | 'review_request';
+
+export interface TemplateRow {
+  id: string;
+  kind: TemplateKind;
+  language: Language;
+  title: string;
+  body: string;
+  is_preset: boolean;
+  sort_order: number;
+  archived_at: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+export interface SettingsRow {
+  property_name: string;
+  contact_phone: string | null;
+  address: string | null;
+  google_review_link: string | null;
+}
+
+export interface NewPayment {
+  stay_id: string;
+  amount: number;
+  type: PaymentType;
+  mode: PaymentMode;
+  paid_on: ISODate;
+  reference: string | null;
+  created_by: string;
+}
+
+export interface NewCharge {
+  stay_id: string;
+  kind: ChargeKind;
+  label: string;
+  amount: number;
+  created_by: string;
+}
+
+export interface NewBlocked {
+  start_date: ISODate;
+  end_date: ISODate;
+  reason: string;
+  created_by: string;
+}
+
+export interface NewTemplate {
+  kind: TemplateKind;
+  language: Language;
+  title: string;
+  body: string;
+  created_by: string;
+}
+
+export interface GuestEdit {
+  name: string;
+  email: string | null;
+  city: string | null;
+  notes: string | null;
+  language: Language;
+}

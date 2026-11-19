@@ -92,8 +92,8 @@ export function SubHeader({ title, subtitle, onBack, right }: { title: string; s
         <Icon name="back" size={24} />
       </button>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h1 className="truncate text-[22px] font-bold leading-tight">{title}</h1>
-        {subtitle && <span className="truncate text-[14px] text-muted">{subtitle}</span>}
+        <h1 className="line-clamp-2 break-words text-[22px] font-bold leading-tight">{title}</h1>
+        {subtitle && <span className="text-[14px] leading-snug text-muted">{subtitle}</span>}
       </div>
       {right}
     </header>

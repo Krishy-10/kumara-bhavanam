@@ -1,6 +1,6 @@
 /** Words shown for stored codes, and the short pick-lists used in forms. */
-import type { PaymentMode } from '@/data/types';
-import type { StayStatus } from './money';
+import type { DocType, PaymentMode } from '@/data/types';
+import type { PaymentType, StayStatus } from './money';
 
 export const STATUS_LABEL: Record<StayStatus, string> = {
   enquiry: 'Enquiry',
@@ -26,3 +26,20 @@ export const DISCOUNT_LABELS = ['Returning guest', 'Referral', 'Long stay', 'Oth
 export const EXTRA_LABELS = ['Extra bedding', 'Extra mattress', 'Late check-out', 'Cleaning', 'Other'] as const;
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+export const PAYMENT_TYPE_LABEL: Record<PaymentType, string> = {
+  advance: 'Advance',
+  payment: 'Payment',
+  refund: 'Refund',
+};
+
+export const DOC_TYPE_LABEL: Record<DocType, string> = {
+  aadhaar: 'Aadhaar',
+  passport: 'Passport',
+  driving_licence: 'Driving licence',
+  voter_id: 'Voter ID',
+  other: 'Other ID',
+};
+
+export const BLOCK_REASONS = ['Maintenance', 'Family use', 'Cleaning', 'Other'] as const;
+export const VOID_REASONS = ['Entered twice', 'Wrong amount', 'Wrong stay', 'Other'] as const;

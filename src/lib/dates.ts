@@ -94,3 +94,26 @@ export function formatRange(start: ISODate, end: ISODate): string {
   }
   return `${formatDayMonth(start)} to ${formatDayMonth(end)}`;
 }
+
+/** The IST calendar date of a database timestamp (created_at, checked_at). */
+export function istDate(timestamp: string): ISODate {
+  return todayIST(new Date(timestamp));
+}
+
+/** 'YYYY-MM' moved by n months. */
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number) as [number, number];
+  const total = y * 12 + (m - 1) + n;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+
+/** Months from `from` to `to` inclusive, as 'YYYY-MM'. */
+export function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let m = from; m <= to; m = addMonths(m, 1)) out.push(m);
+  return out;
+}
+
+const monthShortYear = fmt({ month: 'short', year: 'numeric' });
+/** "Nov 2026" */
+export const formatMonthShort = (month: string) => monthShortYear.format(asDate(`${month}-01`));

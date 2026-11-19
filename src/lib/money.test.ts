@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  balanceAfter,
   balanceState,
+  bookedRevenueBy,
+  bookedRevenueByMonth,
   collectedBetween,
+  collectedByMonth,
   computeStayTotals,
   dueAfterAdvance,
   revenueByMonth,
@@ -198,5 +202,37 @@ describe('demo seed (today = 19 Nov 2026)', () => {
 
   it('Home: ₹5,000 to collect', () => {
     expect(toCollect(totals)).toBe(5000);
+  });
+});
+
+describe('analytics sums', () => {
+  // 3 nights across a month end: 30 Nov, 1 Dec, 2 Dec. ₹10,000 → 3,333 / 3,333 / 3,334.
+  const across = { ...perNight(0, '2026-11-30', '2026-12-03'), pricing_mode: 'fixed' as const, fixed_amount: 10000, final: 10000, occasion: 'Sashti' };
+  const tentative = { ...perNight(5000), status: 'tentative' as const, final: 10000, occasion: 'Wedding' };
+  const cancelled = { ...perNight(5000), status: 'cancelled' as const, final: 10000, occasion: 'Wedding' };
+
+  it('splits booked revenue by night into months, ignoring tentative and cancelled', () => {
+    const m = bookedRevenueByMonth([across, tentative, cancelled], ['2026-11', '2026-12']);
+    expect(m.get('2026-11')).toBe(3333);
+    expect(m.get('2026-12')).toBe(6667);
+  });
+
+  it('groups booked revenue by a key within a date range', () => {
+    const m = bookedRevenueBy([across], (s) => s.occasion, '2026-12-01', '2027-01-01');
+    expect(m.get('Sashti')).toBe(6667);
+  });
+
+  it('counts cash by payment month, refunds in the month paid out', () => {
+    const m = collectedByMonth([pay(5000, '2026-11-02'), pay(2000, '2026-12-05', 'refund'), pay(900, '2026-12-06', 'payment', true)], ['2026-11', '2026-12']);
+    expect(m.get('2026-11')).toEqual({ amount: 5000, count: 1 });
+    expect(m.get('2026-12')).toEqual({ amount: -2000, count: 0 });
+  });
+});
+
+describe('balanceAfter', () => {
+  it('payments lower the balance, refunds raise it', () => {
+    expect(balanceAfter(5000, 'payment', 5000)).toBe(0);
+    expect(balanceAfter(5000, 'advance', 6000)).toBe(-1000);
+    expect(balanceAfter(-1000, 'refund', 1000)).toBe(0);
   });
 });

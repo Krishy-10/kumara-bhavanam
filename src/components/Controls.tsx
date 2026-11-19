@@ -164,6 +164,7 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={typeof o.label === 'string' ? o.label : undefined}
             onClick={() => onChange(o.value)}
             className={cx(
               'relative min-h-touch flex-1 rounded-[14px] px-3 text-[16px] font-semibold transition-colors',
@@ -286,5 +287,126 @@ export function Toggle({ label, hint, checked, onChange }: { label: string; hint
         />
       </span>
     </button>
+  );
+}
+
+/** Native date picker (the phone's own calendar), with the weekday as a hint. */
+export function DateField({
+  label,
+  value,
+  onChange,
+  hint,
+  min,
+  max,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: ReactNode;
+  min?: string;
+  max?: string;
+  className?: string;
+}) {
+  const id = useId();
+  return (
+    <div className={className}>
+      <FieldLabel htmlFor={id} hint={hint}>
+        {label}
+      </FieldLabel>
+      <input
+        id={id}
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className={cx(inputBase, 'num text-[18px] font-semibold')}
+      />
+    </div>
+  );
+}
+
+/** Multi-line text, same look as TextField. */
+export function TextArea({
+  label,
+  hint,
+  value,
+  onChange,
+  rows = 4,
+  placeholder,
+  className,
+  error,
+}: {
+  label: string;
+  hint?: ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  rows?: number;
+  placeholder?: string;
+  className?: string;
+  error?: string | null;
+}) {
+  const id = useId();
+  return (
+    <div className={className}>
+      <FieldLabel htmlFor={id} hint={hint}>
+        {label}
+      </FieldLabel>
+      <textarea
+        id={id}
+        rows={rows}
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-err` : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        className={cx(inputBase, 'py-3 leading-relaxed', error && 'border-terracotta')}
+      />
+      {error && (
+        <p id={`${id}-err`} className="mt-1.5 text-[14px] text-terracotta">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Pick one of several coded values shown with friendly labels. */
+export function LabelledChips<T extends string>({
+  label,
+  options,
+  labels,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly T[];
+  labels: Record<T, string>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const active = o === value;
+        return (
+          <motion.button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onChange(o)}
+            className={cx(
+              'min-h-touch rounded-full border px-4 text-[15px] font-medium transition-colors',
+              active ? 'border-peacock bg-peacock text-white' : 'border-line-strong bg-white text-teak hover:border-peacock/40',
+            )}
+          >
+            {labels[o]}
+          </motion.button>
+        );
+      })}
+    </div>
   );
 }

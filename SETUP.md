@@ -97,6 +97,11 @@ npm run dev
 
 Open the address it prints (usually <http://localhost:5173>).
 
+On Windows, if PowerShell says "running scripts is disabled on this system",
+use `npm.cmd` in place of `npm` (e.g. `npm.cmd run dev`), or use Command Prompt.
+To try it on your phone over the same Wi-Fi, run `npm.cmd run dev -- --host`
+and open the **Network** address it prints.
+
 No Supabase project yet? Leave `.env.local` out and `npm run dev` runs a
 **local preview**: the same SQL files load into an in-browser Postgres
 (PGlite) with the sample data. It resets on every reload and exists only in

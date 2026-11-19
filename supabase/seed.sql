@@ -99,7 +99,7 @@ insert into public.message_templates (kind, language, title, body, is_preset, so
    E'Vanakkam {guest} ji, it was a pleasure hosting you. Could you share a few honest words about your stay on Google? {review_link}\nThank you!',
    true, 20, 'Krishna Kumar'),
   ('review_request', 'en', 'For pilgrim groups',
-   E'Vanakkam {guest} ji,\n\nWe hope your {occasion} visit was peaceful and fulfilling. Many pilgrim families look for a place like ours, and your honest review would help them decide:\n{review_link}\n\nWith regards,\nKumara Bhavanam',
+   E'Vanakkam {guest} ji,\n\nWe hope {occasion} was peaceful and fulfilling. Many pilgrim families look for a place like ours, and your honest review would help them decide:\n{review_link}\n\nWith regards,\nKumara Bhavanam',
    true, 30, 'Krishna Kumar'),
   ('review_request', 'en', 'For families',
    E'Vanakkam {guest} ji,\n\nThank you for choosing Kumara Bhavanam for your family. If the stay felt like home, or if something could be better, please tell us in a Google review. Every honest word helps:\n{review_link}',

@@ -13,7 +13,7 @@
  * Every amount is an integer number of rupees. Nothing here returns a fraction.
  */
 import { assertRupees } from './format';
-import { monthKey, nightsBetween, nightsOf, type ISODate } from './dates';
+import { monthKey, monthRange, nightsBetween, nightsOf, type ISODate } from './dates';
 
 export type StayStatus = 'enquiry' | 'tentative' | 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
 export type PricingMode = 'per_night' | 'fixed';
@@ -183,4 +183,56 @@ export function revenueByMonth(stay: StayPricing, final: number): Map<string, nu
     out.set(key, (out.get(key) ?? 0) + amount);
   }
   return out;
+}
+
+// ---- Analytics --------------------------------------------------------------
+// Booked revenue is split by night (nightRevenue); cash is counted by paid_on
+// (collectedBetween). Screens only filter rows and pick months; the sums are here.
+
+/** Adds whole-rupee amounts. */
+export function sumRupees(amounts: number[]): number {
+  amounts.forEach(assertRupees);
+  return sum(amounts);
+}
+
+type BookedStay = StayPricing & { final: number };
+
+/** Booked revenue per month ('YYYY-MM'), for the given months only. */
+export function bookedRevenueByMonth(stays: BookedStay[], months: string[]): Map<string, number> {
+  const out = new Map<string, number>(months.map((m) => [m, 0]));
+  for (const s of stays) {
+    for (const [m, amount] of revenueByMonth(s, s.final)) {
+      if (out.has(m)) out.set(m, out.get(m)! + amount);
+    }
+  }
+  return out;
+}
+
+/** Booked revenue for nights in [start, end), grouped by `keyOf(stay)`. */
+export function bookedRevenueBy<T extends BookedStay, K>(stays: T[], keyOf: (s: T) => K, start: ISODate, end: ISODate): Map<K, number> {
+  const out = new Map<K, number>();
+  for (const s of stays) {
+    const inRange = nightRevenue(s, s.final).filter((n) => n.night >= start && n.night < end);
+    if (inRange.length === 0) continue;
+    const k = keyOf(s);
+    out.set(k, (out.get(k) ?? 0) + sum(inRange.map((n) => n.amount)));
+  }
+  return out;
+}
+
+/** Cash collected per month by payment date (refunds subtract in their month). */
+export function collectedByMonth(payments: PaymentLine[], months: string[]): Map<string, Collected> {
+  return new Map(
+    months.map((m) => {
+      const { start, end } = monthRange(m);
+      return [m, collectedBetween(payments, start, end)];
+    }),
+  );
+}
+
+/** The balance once one more payment, advance or refund is recorded (Add payment preview). */
+export function balanceAfter(balance: number, type: PaymentType, amount: number): number {
+  assertRupees(balance);
+  assertRupees(amount);
+  return type === 'refund' ? balance + amount : balance - amount;
 }

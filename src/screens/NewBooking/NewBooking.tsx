@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Button } from '@/components/Button';
 import { Screen, SubHeader } from '@/components/Layout';
 import { useBlockedDates, useCreateBooking, useGuestByPhone, useStays } from '@/data/hooks';
@@ -33,7 +33,18 @@ export function NewBooking() {
   const create = useCreateBooking();
 
   // The draft survives a reload or the Android back button within this tab.
-  const [draft, setDraft] = useState<Draft>(() => readSession<Draft>(DRAFT_KEY) ?? newDraft(today));
+  // Opening from the calendar or a guest page starts a fresh draft with that date or phone.
+  const location = useLocation();
+  const start = location.state as { checkIn?: string; phone?: string } | null;
+  const [draft, setDraft] = useState<Draft>(() =>
+    start?.checkIn || start?.phone
+      ? { ...newDraft(today), checkIn: start.checkIn ?? today, phone: start.phone ?? '' }
+      : (readSession<Draft>(DRAFT_KEY) ?? newDraft(today)),
+  );
+  // Drop that start state so a reload keeps the typed draft instead.
+  useEffect(() => {
+    if (start) navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [start, navigate, location.pathname, location.search]);
   const set = useCallback((p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p })), []);
   useEffect(() => writeSession(DRAFT_KEY, draft), [draft]);
 

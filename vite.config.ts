@@ -14,6 +14,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // The demo sits behind Cloudflare Access: fetch the manifest with the
+      // Access cookie, or Chrome can't read it and won't offer to install.
+      useCredentials: true,
       includeAssets: ['icons/favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'Kumara Bhavanam',
@@ -35,6 +38,9 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'],
+        // jsPDF's optional add-ons (HTML and SVG import) are never used: the
+        // bill is drawn on a canvas. Don't make every phone download them.
+        globIgnores: ['**/html2canvas*.js', '**/purify*.js', '**/index.es-*.js'],
         // Supabase responses hold guest names and phone numbers: never cache them
         // in the service worker. Only Google Fonts are cached at runtime.
         runtimeCaching: [

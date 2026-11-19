@@ -3,7 +3,7 @@
  * Pure date logic, no money. Stay ranges are half-open [check_in, check_out);
  * blocked dates include both ends.
  */
-import { addDays, nightsBetween, rangesOverlap, type ISODate } from './dates';
+import { addDays, monthRange, nightsBetween, rangesOverlap, weekdayMon0, type ISODate } from './dates';
 import { BLOCKING_STATUSES, type StayStatus } from './money';
 
 export interface StayDates {
@@ -108,4 +108,59 @@ export function findConflicts<T extends StayDates, B extends BlockedRange>(
       return rangesOverlap(r.start, r.end, checkIn, checkOut);
     }),
   };
+}
+
+// ---- Month calendar ---------------------------------------------------------
+
+/** Statuses shown as booked on the calendar (past stays included). */
+const CALENDAR_BOOKED: readonly StayStatus[] = ['confirmed', 'checked_in', 'completed'];
+
+/** Every date shown for a month, Monday-first weeks, padded with the days around it. */
+export function monthGrid(month: string): ISODate[] {
+  const first = `${month}-01`;
+  const start = addDays(first, -weekdayMon0(first));
+  const last = addDays(monthRange(month).end, -1);
+  const end = addDays(last, 6 - weekdayMon0(last));
+  return Array.from({ length: nightsBetween(start, end) + 1 }, (_, i) => addDays(start, i));
+}
+
+export interface CalendarDay<T extends StayDates, B extends BlockedRange> {
+  date: ISODate;
+  /** A confirmed, checked-in or completed stay on this night. */
+  stay?: T;
+  /** A tentative hold on this night (shown only when nothing is booked). */
+  tentative?: T;
+  blocked?: B;
+  /** First / last night of `stay` or `tentative`, for the rounded ends. */
+  isStart: boolean;
+  isEnd: boolean;
+}
+
+/** What is on the night of `date`. The check-out morning is a free night. */
+export function calendarDay<T extends StayDates, B extends BlockedRange>(date: ISODate, stays: T[], blocked: B[]): CalendarDay<T, B> {
+  const on = (s: T) => s.check_in <= date && date < s.check_out;
+  const stay = stays.find((s) => on(s) && CALENDAR_BOOKED.includes(s.status));
+  const tentative = stay ? undefined : stays.find((s) => on(s) && s.status === 'tentative');
+  const b = blocked.find((x) => x.start_date <= date && date <= x.end_date);
+  const shown = stay ?? tentative;
+  return {
+    date,
+    stay,
+    tentative,
+    blocked: b,
+    isStart: !!shown && shown.check_in === date,
+    isEnd: !!shown && addDays(shown.check_out, -1) === date,
+  };
+}
+
+/** Nights in `month` that are booked (confirmed, checked in or completed). */
+export function bookedNightsIn<T extends StayDates>(stays: T[], start: ISODate, end: ISODate): number {
+  let n = 0;
+  for (const s of stays) {
+    if (!CALENDAR_BOOKED.includes(s.status)) continue;
+    const from = s.check_in > start ? s.check_in : start;
+    const to = s.check_out < end ? s.check_out : end;
+    if (from < to) n += nightsBetween(from, to);
+  }
+  return n;
 }

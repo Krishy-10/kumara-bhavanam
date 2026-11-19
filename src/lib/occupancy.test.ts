@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentStay, findConflicts, nextArrival, nextFreeWindow, nightProgress, occupiedRanges, type StayDates } from './occupancy';
+import { bookedNightsIn, calendarDay, currentStay, findConflicts, monthGrid, nextArrival, nextFreeWindow, nightProgress, occupiedRanges, type StayDates } from './occupancy';
 import { formatPhone, normalizePhone, waNumber } from './phone';
 
 // The four seed stays and the blocked dates (today = 19 Nov 2026).
@@ -66,5 +66,27 @@ describe('phone numbers', () => {
   it('formats for display and WhatsApp', () => {
     expect(formatPhone('+919843112345')).toBe('+91 98431 12345');
     expect(waNumber('+919843112345')).toBe('919843112345');
+  });
+});
+
+describe('month calendar', () => {
+  it('shows whole Monday-first weeks', () => {
+    const g = monthGrid('2026-11');
+    expect(g[0]).toBe('2026-10-26'); // 1 Nov 2026 is a Sunday
+    expect(g.at(-1)).toBe('2026-12-06');
+    expect(g.length % 7).toBe(0);
+  });
+
+  it('marks booked, tentative, blocked and free nights', () => {
+    expect(calendarDay('2026-11-14', stays, blocked)).toMatchObject({ stay: { stay_id: 'lakshmi' }, isStart: true, isEnd: false });
+    expect(calendarDay('2026-11-21', stays, blocked)).toMatchObject({ isEnd: true });
+    expect(calendarDay('2026-11-22', stays, blocked).stay).toBeUndefined(); // check-out morning is free
+    expect(calendarDay('2026-12-04', stays, blocked).tentative?.stay_id).toBe('ravi');
+    expect(calendarDay('2026-11-29', stays, blocked).blocked?.reason).toBe('Family function');
+  });
+
+  it('counts booked nights inside a range', () => {
+    // Nov: Meena 1 (1 Nov) + Lakshmi 8 + Priya 2 = 11; Ravi is tentative.
+    expect(bookedNightsIn(stays, '2026-11-01', '2026-12-01')).toBe(11);
   });
 });
