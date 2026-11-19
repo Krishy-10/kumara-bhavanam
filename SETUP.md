@@ -29,9 +29,10 @@ Each should end with "Success. No rows returned".
 | # | File | What it does |
 |---|------|--------------|
 | 1 | `supabase/migrations/001_init.sql` | Tables, `stay_totals` view, overlap rule, bill numbers, payment guards, live RLS |
-| 2 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
-| 3 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
-| 4 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history for the analytics screen |
+| 2 | `supabase/migrations/002_create_booking.sql` | `create_booking`: saves guest, stay, extras and advance in one step |
+| 3 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
+| 4 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
+| 5 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history for the analytics screen |
 
 If step 1 complains about `btree_gist`, open **Database → Extensions**, turn on
 **btree_gist**, then run step 1 again.
@@ -95,6 +96,11 @@ npm run dev
 ```
 
 Open the address it prints (usually <http://localhost:5173>).
+
+No Supabase project yet? Leave `.env.local` out and `npm run dev` runs a
+**local preview**: the same SQL files load into an in-browser Postgres
+(PGlite) with the sample data. It resets on every reload and exists only in
+`npm run dev`; production builds never include it.
 
 Other checks:
 

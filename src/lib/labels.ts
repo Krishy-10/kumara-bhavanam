@@ -1,0 +1,28 @@
+/** Words shown for stored codes, and the short pick-lists used in forms. */
+import type { PaymentMode } from '@/data/types';
+import type { StayStatus } from './money';
+
+export const STATUS_LABEL: Record<StayStatus, string> = {
+  enquiry: 'Enquiry',
+  tentative: 'Tentative',
+  confirmed: 'Confirmed',
+  checked_in: 'Checked in',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
+export const PAYMENT_MODE_LABEL: Record<PaymentMode, string> = {
+  upi: 'UPI',
+  cash: 'Cash',
+  bank_transfer: 'Bank transfer',
+  card: 'Card',
+  other: 'Other',
+};
+
+export const OCCASIONS = ['Sashti', 'Pilgrimage', 'Temple visit', 'Wedding', 'Family function', 'Holiday', 'Other'] as const;
+export const SOURCES = ['Phone', 'WhatsApp', 'Referral', 'Returning guest', 'Walk-in', 'Online', 'Other'] as const;
+/** Must match the charges_discount_label check in the database. */
+export const DISCOUNT_LABELS = ['Returning guest', 'Referral', 'Long stay', 'Other'] as const;
+export const EXTRA_LABELS = ['Extra bedding', 'Extra mattress', 'Late check-out', 'Cleaning', 'Other'] as const;
+
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

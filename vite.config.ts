@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // PGlite (dev-only local preview) loads its own WebAssembly; don't pre-bundle it.
+  optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   plugins: [
     react(),
     VitePWA({

@@ -37,6 +37,9 @@
   .pb-safe {
     padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -106,6 +106,18 @@ export function balanceState(balance: number): BalanceState {
   return { kind: 'paid' };
 }
 
+/**
+ * The sum written out, for the New booking money bar and the bill:
+ * "2 × ₹5,000 + ₹500 − ₹500" or "Fixed ₹40,000 + ₹1,000 − ₹1,000".
+ */
+export function totalBreakdown(stay: StayPricing, totals: Pick<StayTotals, 'nights' | 'charges' | 'discounts'>, fmt: (n: number) => string): string {
+  const base =
+    stay.pricing_mode === 'per_night' ? `${totals.nights} × ${fmt(stay.nightly_rate ?? 0)}` : `Fixed ${fmt(stay.fixed_amount ?? 0)}`;
+  const plus = totals.charges > 0 ? ` + ${fmt(totals.charges)}` : '';
+  const minus = totals.discounts > 0 ? ` − ${fmt(totals.discounts)}` : '';
+  return `${base}${plus}${minus}`;
+}
+
 /** What is still to pay before arrival after an advance (New booking money bar). */
 export function dueAfterAdvance(final: number, advance: number): number {
   assertRupees(final);
@@ -130,6 +142,11 @@ export function collectedBetween(payments: PaymentLine[], start: ISODate, end: I
   const inflow = inRange.filter((p) => p.type !== 'refund');
   const outflow = inRange.filter((p) => p.type === 'refund');
   return { amount: sum(inflow.map((p) => p.amount)) - sum(outflow.map((p) => p.amount)), count: inflow.length };
+}
+
+/** A guest's "total spent": money actually received across all their stays, net of refunds. */
+export function totalSpent(stays: { net_paid: number }[]): number {
+  return sum(stays.map((s) => s.net_paid));
 }
 
 /** Home's "To collect": positive balances on stays that are checked in or completed. */

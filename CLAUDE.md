@@ -29,9 +29,12 @@ npm run test:db      # runs all SQL in an in-memory Postgres (PGlite) and checks
 
 Database (see SETUP.md), run in the Supabase SQL editor in this order:
 1. `supabase/migrations/001_init.sql` (schema, views, constraints, live RLS)
-2. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live)
-3. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-4. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history)
+2. `supabase/migrations/002_create_booking.sql` (`create_booking` RPC: guest + stay + charges + advance, all or nothing)
+3. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live)
+4. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+5. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history)
+
+Local preview: with no Supabase env set, `npm run dev` serves the app from an in-browser PGlite loaded with the same SQL (`src/dev/localBackend.ts`). Dev only; never in `dist/`.
 
 After any SQL or money change, run `npm test` and `npm run test:db`; both must pass.
 Screens read stays from the `stay_totals` view (stay + guest + money in one row).

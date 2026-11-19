@@ -30,6 +30,7 @@ await db.exec(`
 `);
 
 await db.exec(read('supabase/migrations/001_init.sql'));
+await db.exec(read('supabase/migrations/002_create_booking.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -125,6 +126,46 @@ await db.exec(`set role authenticated; select set_config('request.jwt.claims', '
 const live = await one(`select count(*)::int n from stays`);
 ok(live.n === 0, `non-allow-listed signed-in user sees ${live.n} stays`);
 await db.exec('reset role;');
+
+// create_booking: one atomic call, as the app makes it (anon, demo).
+const booking = (over = {}) => JSON.stringify({
+  created_by: 'Padmanabhan',
+  guest: { phone: '+910000000999', name: 'Test Guest', city: 'Tenkasi', language: 'en' },
+  stay: { check_in: '2027-03-10', check_out: '2027-03-13', guests_count: 5, driver_room: true, status: 'confirmed',
+          pricing_mode: 'per_night', nightly_rate: 5000, occasion: 'Temple visit', source: 'Phone' },
+  charges: [{ kind: 'charge', label: 'Extra bedding', amount: 500 }, { kind: 'discount', label: 'Referral', amount: 500 }],
+  advance: { amount: 3000, mode: 'upi', paid_on: '2026-11-19' },
+  ...over,
+});
+const asAnon = async (sql, params) => {
+  await db.exec(as('anon'));
+  try { return (await db.query(sql, params)).rows[0]; } finally { await db.exec('reset role;'); }
+};
+const made = (await asAnon(`select public.create_booking($1::jsonb) as r`, [booking()])).r;
+const mt = await one(`select final, paid, balance, created_by from stay_totals where stay_id = '${made.stay_id}'`);
+ok(/^KB-\d{4}-\d{4}$/.test(made.bill_no) && mt.final === 15000 && mt.paid === 3000 && mt.balance === 12000 && mt.created_by === 'Padmanabhan',
+  `create_booking saved ${made.bill_no}: final ${mt.final}, paid ${mt.paid}, balance ${mt.balance}`);
+
+const stayCount = async () => (await one(`select count(*)::int n from stays`)).n;
+const before = await stayCount();
+const expectRpcError = async (payload, re, msg) => {
+  try { await asAnon(`select public.create_booking($1::jsonb) as r`, [payload]); ok(false, `${msg} (no error)`); }
+  catch (e) { ok(re.test(e.message), `${msg} → ${e.message.split('\n')[0]}`); }
+};
+await expectRpcError(booking({ stay: { check_in: '2026-11-20', check_out: '2026-11-23', status: 'confirmed', pricing_mode: 'per_night', nightly_rate: 5000 } }),
+  /stays_no_double_booking/, 'create_booking refuses an overlap');
+await expectRpcError(booking({ stay: { check_in: '2027-04-10', check_out: '2027-04-12', status: 'confirmed', pricing_mode: 'per_night', nightly_rate: 5000 },
+  advance: { amount: 2500.5, mode: 'upi', paid_on: '2026-11-19' } }),
+  /invalid input syntax for type integer/, 'create_booking refuses a fractional advance');
+ok((await stayCount()) === before, 'failed bookings leave nothing behind (all or nothing)');
+
+const again = (await asAnon(`select public.create_booking($1::jsonb) as r`, [booking({
+  guest: { phone: '+910000000999', name: 'Test Guest Renamed' },
+  stay: { check_in: '2027-05-01', check_out: '2027-05-02', status: 'enquiry', pricing_mode: 'fixed', fixed_amount: 4000 },
+  charges: [], advance: null })])).r;
+ok(again.guest_id === made.guest_id, 'same phone reuses the guest (no duplicate)');
+const gname = await one(`select name, city from guests where id = '${made.guest_id}'`);
+ok(gname.name === 'Test Guest Renamed' && gname.city === 'Tenkasi', `guest updated, blanks kept (${gname.name}, ${gname.city})`);
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

@@ -22,3 +22,9 @@ export const isSupabaseConfigured =
   /^https:\/\/.+/.test(env.supabaseUrl) &&
   env.supabaseAnonKey.length > 20 &&
   !env.supabaseAnonKey.startsWith('YOUR-');
+
+/**
+ * `npm run dev` with no Supabase project: use the in-browser sample database.
+ * Always false in production builds (import.meta.env.DEV is replaced by false).
+ */
+export const isLocalPreview = import.meta.env.DEV && !isSupabaseConfigured;
