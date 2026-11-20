@@ -24,7 +24,6 @@ export function StayItem({ stay, highlight, year }: { stay: StayRow; highlight?:
           {formatRange(stay.check_in, stay.check_out)}
           {stay.check_in.slice(0, 4) !== year && ` ${stay.check_in.slice(0, 4)}`} ·{' '}
           {plural(stay.guests_count, 'guest')}
-          {stay.driver_room && ' + driver'}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">

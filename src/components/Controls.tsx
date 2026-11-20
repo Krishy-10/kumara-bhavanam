@@ -225,6 +225,47 @@ export function Chips<T extends string>({
   );
 }
 
+/**
+ * Pick any number of options. Each chip is a toggle button (aria-pressed);
+ * a picked chip shows a tick as well as its colour, so meaning never rests on
+ * colour alone.
+ */
+export function MultiChips<T extends string>({
+  label,
+  options,
+  value,
+  onToggle,
+}: {
+  label: string;
+  options: readonly T[];
+  value: readonly string[];
+  onToggle: (v: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const active = value.includes(o);
+        return (
+          <motion.button
+            key={o}
+            type="button"
+            aria-pressed={active}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onToggle(o)}
+            className={cx(
+              'inline-flex min-h-touch items-center gap-1.5 rounded-full border px-4 text-[15px] font-medium transition-colors',
+              active ? 'border-peacock bg-peacock pl-3 text-white' : 'border-line-strong bg-white text-teak hover:border-peacock/40',
+            )}
+          >
+            {active && <Icon name="check" size={18} />}
+            {o}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** − n + with 48px buttons. */
 export function Stepper({
   label,

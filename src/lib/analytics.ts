@@ -58,13 +58,15 @@ export function occupancy(stays: StayDates[], start: ISODate, end: ISODate): Occ
   return { booked, nights, pct: nights > 0 ? Math.round((booked * 100) / nights) : 0 };
 }
 
-/** Count of non-cancelled stays arriving in [start, end), grouped by `keyOf`. */
-export function arrivalsBy<T extends StayDates>(stays: T[], keyOf: (s: T) => string, start: ISODate, end: ISODate): Map<string, number> {
+/**
+ * Count of non-cancelled stays arriving in [start, end), grouped by `keyOf`.
+ * A stay with several keys (e.g. two sources) counts once under each.
+ */
+export function arrivalsBy<T extends StayDates>(stays: T[], keyOf: (s: T) => string | string[], start: ISODate, end: ISODate): Map<string, number> {
   const out = new Map<string, number>();
   for (const s of stays) {
     if (s.status === 'cancelled' || s.check_in < start || s.check_in >= end) continue;
-    const k = keyOf(s);
-    out.set(k, (out.get(k) ?? 0) + 1);
+    for (const k of new Set([keyOf(s)].flat())) out.set(k, (out.get(k) ?? 0) + 1);
   }
   return out;
 }

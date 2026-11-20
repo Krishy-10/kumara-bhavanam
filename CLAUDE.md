@@ -30,9 +30,12 @@ npm run test:db      # runs all SQL in an in-memory Postgres (PGlite) and checks
 Database (see SETUP.md), run in the Supabase SQL editor in this order:
 1. `supabase/migrations/001_init.sql` (schema, views, constraints, live RLS)
 2. `supabase/migrations/002_create_booking.sql` (`create_booking` RPC: guest + stay + charges + advance, all or nothing)
-3. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live)
-4. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-5. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history)
+3. `supabase/migrations/003_sources_referrers.sql` (several sources per stay, referrers list, driver room dropped; create_booking v2)
+4. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
+5. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+6. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers)
+
+New schema changes go in a new numbered migration (the demo database is already live); never edit an applied one.
 
 Local preview: with no Supabase env set, `npm run dev` serves the app from an in-browser PGlite loaded with the same SQL (`src/dev/localBackend.ts`). Dev only; never in `dist/`.
 
@@ -97,6 +100,12 @@ Screens read stays from the `stay_totals` view (stay + guest + money in one row)
 ### Home figures (decided Nov 19 2026)
 - "To collect" = sum of positive balances on `checked_in` and `completed` stays only. Future stays show their due amount on the Next arrival card.
 - A cancelled stay's balance is 0. Money kept still counts in Collected by payment date; refunds subtract in the month they are paid out.
+
+### Sources and referrers (decided Nov 20 2026)
+- No driver room: the toggle and the `driver_room` column are gone.
+- "How they found us" allows several answers: `stays.sources text[]` (values from `SOURCES` in `src/lib/labels.ts`). In analytics a stay counts once under each of its sources.
+- Referrers are a shared list (`referrers`: name, optional phone, archived not deleted). A stay links to one only when its sources include Referral (DB check). In New booking: pick an existing referrer, or type a new name (and optional phone) which `create_booking` adds; a known phone, or a name only one referrer has, reuses that referrer.
+- Commission is NOT built yet. It will hang off `referrers` in the ledger work; never on the guest's bill.
 
 ### Other defaults (stated to the user, not objected to)
 - Blocked dates: start and end both inclusive. They warn in New booking (not a hard DB block). V1 includes a small "Block dates" form on Stays.

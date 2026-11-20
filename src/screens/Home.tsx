@@ -178,7 +178,7 @@ function formatRangeShort(from: string, until: string): string {
 
 function NowStayingCard({ stay, today }: { stay: StayRow; today: string }) {
   const { total, tonight } = nightProgress(stay.check_in, stay.check_out, today);
-  const details = [plural(stay.guests_count, 'guest'), stay.driver_room ? 'driver room' : null, stay.occasion].filter(Boolean).join(' · ');
+  const details = [plural(stay.guests_count, 'guest'), stay.occasion].filter(Boolean).join(' · ');
   return (
     <Link
       to={`/stays/${stay.stay_id}`}

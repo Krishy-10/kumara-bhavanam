@@ -12,6 +12,7 @@ export const keys = {
   idCheck: (id: string) => ['idcheck', id] as const,
   blocked: ['blocked'] as const,
   guests: ['guests'] as const,
+  referrers: ['referrers'] as const,
   guestByPhone: (phone: string) => ['guest', 'phone', phone] as const,
   templates: ['templates'] as const,
   settings: ['settings'] as const,
@@ -53,6 +54,10 @@ export function useGuests() {
   return useQuery({ queryKey: keys.guests, queryFn: api.fetchGuests });
 }
 
+export function useReferrers() {
+  return useQuery({ queryKey: keys.referrers, queryFn: api.fetchReferrers });
+}
+
 /** Looks a guest up once a full phone number has been typed. */
 export function useGuestByPhone(phone: string | null) {
   return useQuery({
@@ -87,7 +92,7 @@ const MONEY: QueryKey[] = [keys.stays, ['payments'], ['charges']];
 const GUESTS: QueryKey[] = [keys.guests, ['guest'], keys.stays];
 
 export function useCreateBooking() {
-  return useWrite((p: BookingPayload) => api.createBooking(p), [...MONEY, ...GUESTS]);
+  return useWrite((p: BookingPayload) => api.createBooking(p), [...MONEY, ...GUESTS, keys.referrers]);
 }
 
 export function useSetStatus() {

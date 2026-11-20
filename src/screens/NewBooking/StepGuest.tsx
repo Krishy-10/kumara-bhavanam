@@ -8,7 +8,9 @@ import { STATUS_LABEL, plural } from '@/lib/labels';
 import { totalSpent } from '@/lib/money';
 import { looksLikeIndianMobile, normalizePhone } from '@/lib/phone';
 import { useToday } from '@/hooks/useToday';
-import type { Draft } from './draft';
+import { toggleSource, type Draft } from './draft';
+
+const RETURNING = 'Returning guest';
 
 export function StepGuest({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
   const today = useToday();
@@ -38,7 +40,7 @@ export function StepGuest({ draft, set }: { draft: Draft; set: (p: Partial<Draft
         language: 'en',
         foreign: false,
         nationality: '',
-        source: draft.source === 'Returning guest' ? null : draft.source,
+        sources: draft.sources.filter((x) => x !== RETURNING),
       });
     } else if (guest && draft.filledFrom !== guest.id) {
       set({
@@ -49,10 +51,10 @@ export function StepGuest({ draft, set }: { draft: Draft; set: (p: Partial<Draft
         language: guest.language,
         foreign: guest.nationality !== 'Indian',
         nationality: guest.nationality !== 'Indian' ? guest.nationality : '',
-        source: draft.source ?? 'Returning guest',
+        sources: draft.sources.includes(RETURNING) ? draft.sources : toggleSource(draft.sources, RETURNING),
       });
     }
-  }, [guest, phone, lookup.isSuccess, draft.filledFrom, draft.source, set]);
+  }, [guest, phone, lookup.isSuccess, draft.filledFrom, draft.sources, set]);
 
   const showDetails = phone !== null && !lookup.isPending;
 

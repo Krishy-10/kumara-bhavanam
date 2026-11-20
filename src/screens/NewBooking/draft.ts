@@ -1,6 +1,7 @@
 /** New booking: the draft kept across the three steps, its checks and its payload. */
 import type { BookingPayload, Language, PaymentMode, StayRow } from '@/data/types';
 import { addDays, isISODate, type ISODate } from '@/lib/dates';
+import { SOURCES } from '@/lib/labels';
 import { normalizePhone } from '@/lib/phone';
 import { computeStayTotals, type ChargeKind, type PricingMode, type StayPricing, type StayStatus, type StayTotals } from '@/lib/money';
 
@@ -27,10 +28,15 @@ export interface Draft {
   checkIn: ISODate;
   nights: number;
   guestsCount: number;
-  driverRoom: boolean;
   status: BookingStatus;
   occasion: string | null;
-  source: string | null;
+  /** How they found us: any of SOURCES. */
+  sources: string[];
+  /** Referral only: an existing referrer picked from the list… */
+  referrerId: string | null;
+  /** …or the name (and optional phone) of a new one. */
+  referrerName: string;
+  referrerPhone: string;
   notes: string;
 
   pricingMode: PricingMode;
@@ -58,10 +64,12 @@ export function newDraft(today: ISODate): Draft {
     checkIn: today,
     nights: 1,
     guestsCount: 2,
-    driverRoom: false,
     status: 'confirmed',
     occasion: null,
-    source: null,
+    sources: [],
+    referrerId: null,
+    referrerName: '',
+    referrerPhone: '',
     notes: '',
     pricingMode: 'per_night',
     nightlyRate: null,
@@ -76,6 +84,24 @@ export function newDraft(today: ISODate): Draft {
 
 export const checkOutOf = (d: Draft): ISODate => addDays(d.checkIn, d.nights);
 
+export const REFERRAL = 'Referral';
+export const hasReferral = (d: Pick<Draft, 'sources'>) => d.sources.includes(REFERRAL);
+
+/** Adds or removes one answer to "How they found us", keeping the list in the screen's order. */
+export function toggleSource(sources: string[], s: string): string[] {
+  const next = sources.includes(s) ? sources.filter((x) => x !== s) : [...sources, s];
+  return SOURCES.filter((x) => next.includes(x));
+}
+
+/** Step 2 checks: only the referrer's details can be wrong (both are optional). */
+export function stayStepError(d: Draft): string | null {
+  if (!hasReferral(d) || d.referrerId) return null;
+  if (d.referrerPhone.trim() && !normalizePhone(d.referrerPhone)) return 'Check the referrer’s phone number.';
+  if (d.referrerPhone.trim() && !d.referrerName.trim()) return 'Enter the referrer’s name.';
+  return null;
+}
+
+const isSource = (v: unknown): v is string => typeof v === 'string' && (SOURCES as readonly string[]).includes(v);
 const STATUSES: readonly BookingStatus[] = ['enquiry', 'tentative', 'confirmed'];
 const MODES: readonly PaymentMode[] = ['cash', 'upi', 'bank_transfer', 'card', 'other'];
 const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
@@ -109,10 +135,13 @@ export function restoreDraft(raw: unknown, today: ISODate): Draft {
     checkIn: isISODate(r.checkIn) ? r.checkIn : d.checkIn,
     nights: isInt(r.nights, 1, 60) ? r.nights : d.nights,
     guestsCount: isInt(r.guestsCount, 1, 20) ? r.guestsCount : d.guestsCount,
-    driverRoom: bool('driverRoom'),
     status: STATUSES.includes(r.status as BookingStatus) ? (r.status as BookingStatus) : d.status,
     occasion: strOrNull('occasion'),
-    source: strOrNull('source'),
+    // A draft saved before several answers were allowed has a single "source".
+    sources: Array.isArray(r.sources) ? SOURCES.filter((x) => (r.sources as unknown[]).includes(x)) : isSource(r.source) ? [r.source] : [],
+    referrerId: strOrNull('referrerId'),
+    referrerName: str('referrerName'),
+    referrerPhone: str('referrerPhone'),
     notes: str('notes'),
     pricingMode: r.pricingMode === 'fixed' ? 'fixed' : 'per_night',
     nightlyRate: isRupees(r.nightlyRate) ? r.nightlyRate : d.nightlyRate,
@@ -181,15 +210,21 @@ export function toPayload(d: Draft, createdBy: string): BookingPayload {
       check_in: d.checkIn,
       check_out: checkOutOf(d),
       guests_count: d.guestsCount,
-      driver_room: d.driverRoom,
       status: d.status,
       pricing_mode: d.pricingMode,
       nightly_rate: d.pricingMode === 'per_night' ? d.nightlyRate : null,
       fixed_amount: d.pricingMode === 'fixed' ? d.fixedAmount : null,
       occasion: d.occasion,
-      source: d.source,
+      sources: d.sources,
       notes: d.notes.trim() || null,
     },
+    referrer: !hasReferral(d)
+      ? null
+      : d.referrerId
+        ? { id: d.referrerId }
+        : d.referrerName.trim()
+          ? { name: d.referrerName.trim(), phone: normalizePhone(d.referrerPhone) }
+          : null,
     charges: d.lines.map(({ kind, label, amount }) => ({ kind, label, amount })),
     advance: advance > 0 ? { amount: advance, mode: d.advanceMode, paid_on: d.advanceOn, reference: null } : null,
   };

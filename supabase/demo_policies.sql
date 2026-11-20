@@ -17,9 +17,24 @@
 -- The money guards still hold in demo: payments and charges cannot be deleted
 -- or edited (only voided), bill numbers come from the database, and
 -- confirmed / checked-in stays cannot overlap.
+--
+-- Run after the migrations (001, 002, 003). Safe to re-run: it removes its own
+-- demo_anon_* policies first, then creates them all again.
 -- =============================================================================
 
 begin;
+
+do $$
+declare
+  pol record;
+begin
+  for pol in
+    select policyname, tablename from pg_policies
+    where schemaname = 'public' and policyname like 'demo\_anon\_%'
+  loop
+    execute format('drop policy %I on public.%I', pol.policyname, pol.tablename);
+  end loop;
+end $$;
 
 create policy demo_anon_guests_select on public.guests for select to anon using (true);
 create policy demo_anon_guests_insert on public.guests for insert to anon with check (true);
@@ -53,5 +68,9 @@ create policy demo_anon_templates_update on public.message_templates for update 
 
 create policy demo_anon_settings_select on public.app_settings for select to anon using (true);
 create policy demo_anon_settings_update on public.app_settings for update to anon using (true) with check (true);
+
+create policy demo_anon_referrers_select on public.referrers for select to anon using (true);
+create policy demo_anon_referrers_insert on public.referrers for insert to anon with check (true);
+create policy demo_anon_referrers_update on public.referrers for update to anon using (true) with check (true);
 
 commit;

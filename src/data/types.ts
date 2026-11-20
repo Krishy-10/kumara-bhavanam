@@ -15,13 +15,16 @@ export interface StayRow {
   check_in: ISODate;
   check_out: ISODate;
   guests_count: number;
-  driver_room: boolean;
   status: StayStatus;
   pricing_mode: PricingMode;
   nightly_rate: number | null;
   fixed_amount: number | null;
   occasion: string | null;
-  source: string | null;
+  /** How they found us: none, one or several of SOURCES. */
+  sources: string[];
+  /** Who referred them (only when sources includes Referral). */
+  referrer_id: string | null;
+  referrer_name: string | null;
   notes: string | null;
   created_at: string;
   created_by: string;
@@ -34,6 +37,17 @@ export interface StayRow {
   refunded: number;
   net_paid: number;
   balance: number;
+}
+
+/** Someone who sends guests: a past guest, priest, agent or driver. */
+export interface ReferrerRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  archived_at: string | null;
+  created_at: string;
+  created_by: string;
 }
 
 export interface GuestRow {
@@ -101,15 +115,16 @@ export interface BookingPayload {
     check_in: ISODate;
     check_out: ISODate;
     guests_count: number;
-    driver_room: boolean;
     status: StayStatus;
     pricing_mode: PricingMode;
     nightly_rate: number | null;
     fixed_amount: number | null;
     occasion: string | null;
-    source: string | null;
+    sources: string[];
     notes: string | null;
   };
+  /** Only for a Referral booking: an existing referrer, or a new one to add. */
+  referrer: { id: string } | { name: string; phone: string | null } | null;
   charges: { kind: ChargeKind; label: string; amount: number }[];
   advance: { amount: number; mode: PaymentMode; paid_on: ISODate; reference: string | null } | null;
 }
@@ -118,6 +133,7 @@ export interface BookingResult {
   stay_id: string;
   bill_no: string;
   guest_id: string;
+  referrer_id: string | null;
 }
 
 export type DocType = 'aadhaar' | 'passport' | 'driving_licence' | 'voter_id' | 'other';

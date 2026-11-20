@@ -13,7 +13,7 @@ import { findConflicts } from '@/lib/occupancy';
 import { normalizePhone } from '@/lib/phone';
 import { readSession, writeSession } from '@/lib/storage';
 import { useCurrentUser } from '@/session/UserContext';
-import { checkOutOf, draftPricing, draftTotals, guestStepError, lastNightlyRate, newDraft, priceStepError, restoreDraft, toPayload, type Draft } from './draft';
+import { checkOutOf, draftPricing, draftTotals, guestStepError, lastNightlyRate, newDraft, priceStepError, restoreDraft, stayStepError, toPayload, type Draft } from './draft';
 import { StepGuest } from './StepGuest';
 import { StepPrice } from './StepPrice';
 import { StepStay } from './StepStay';
@@ -63,6 +63,7 @@ export function NewBooking() {
     [stays.data, blocked.data, draft],
   );
   const hardConflict = conflicts.hard.length > 0;
+  const stayError = stayStepError(draft);
   const returning = !!useGuestByPhone(normalizePhone(draft.phone)).data;
 
   // Arriving on step 2 or 3 with no draft means Back was pressed after a save
@@ -134,8 +135,10 @@ export function NewBooking() {
       <div className="sticky bottom-0 z-10 pb-safe">
         {step < 3 ? (
           <div className="border-t border-line bg-jasmine px-[18px] pt-3">
-            {step === 2 && hardConflict && <p className="mb-2 text-center text-[14px] text-terracotta">These dates are taken. Change the dates to continue.</p>}
-            <Button size="lg" block disabled={step === 1 ? !!guestError : hardConflict || stays.isPending} onClick={() => goTo(step + 1)}>
+            {step === 2 && (hardConflict || stayError) && (
+              <p className="mb-2 text-center text-[14px] text-terracotta">{hardConflict ? 'These dates are taken. Change the dates to continue.' : stayError}</p>
+            )}
+            <Button size="lg" block disabled={step === 1 ? !!guestError : hardConflict || !!stayError || stays.isPending} onClick={() => goTo(step + 1)}>
               Next
             </Button>
           </div>

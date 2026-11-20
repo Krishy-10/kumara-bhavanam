@@ -30,9 +30,13 @@ Each should end with "Success. No rows returned".
 |---|------|--------------|
 | 1 | `supabase/migrations/001_init.sql` | Tables, `stay_totals` view, overlap rule, bill numbers, payment guards, live RLS |
 | 2 | `supabase/migrations/002_create_booking.sql` | `create_booking`: saves guest, stay, extras and advance in one step |
-| 3 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
-| 4 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
-| 5 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history for the analytics screen |
+| 3 | `supabase/migrations/003_sources_referrers.sql` | Several "how they found us" answers per stay, the referrers list, no driver room |
+| 4 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
+| 5 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
+| 6 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history (and sample referrers) for the analytics screen |
+
+**Already set up before 20 Nov 2026?** Run only `003_sources_referrers.sql`, then
+`demo_policies.sql` again (it is safe to re-run). Your bookings are kept.
 
 If step 1 complains about `btree_gist`, open **Database → Extensions**, turn on
 **btree_gist**, then run step 1 again.

@@ -18,7 +18,7 @@ const expectError = async (sql, re, msg) => {
 };
 
 // Minimal Supabase stand-ins.
-await db.exec(`
+const STUBS = `
   create schema if not exists extensions;
   create schema if not exists auth;
   create role anon nologin; create role authenticated nologin;
@@ -27,10 +27,12 @@ await db.exec(`
   grant usage on schema public, auth to anon, authenticated;
   alter default privileges in schema public grant all on tables to anon, authenticated;
   alter default privileges in schema public grant all on sequences to anon, authenticated;
-`);
+`;
+await db.exec(STUBS);
 
 await db.exec(read('supabase/migrations/001_init.sql'));
 await db.exec(read('supabase/migrations/002_create_booking.sql'));
+await db.exec(read('supabase/migrations/003_sources_referrers.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -131,8 +133,8 @@ await db.exec('reset role;');
 const booking = (over = {}) => JSON.stringify({
   created_by: 'Padmanabhan',
   guest: { phone: '+910000000999', name: 'Test Guest', city: 'Tenkasi', language: 'en' },
-  stay: { check_in: '2027-03-10', check_out: '2027-03-13', guests_count: 5, driver_room: true, status: 'confirmed',
-          pricing_mode: 'per_night', nightly_rate: 5000, occasion: 'Temple visit', source: 'Phone' },
+  stay: { check_in: '2027-03-10', check_out: '2027-03-13', guests_count: 5, status: 'confirmed',
+          pricing_mode: 'per_night', nightly_rate: 5000, occasion: 'Temple visit', sources: ['Phone'] },
   charges: [{ kind: 'charge', label: 'Extra bedding', amount: 500 }, { kind: 'discount', label: 'Referral', amount: 500 }],
   advance: { amount: 3000, mode: 'upi', paid_on: '2026-11-19' },
   ...over,
@@ -166,6 +168,61 @@ const again = (await asAnon(`select public.create_booking($1::jsonb) as r`, [boo
 ok(again.guest_id === made.guest_id, 'same phone reuses the guest (no duplicate)');
 const gname = await one(`select name, city from guests where id = '${made.guest_id}'`);
 ok(gname.name === 'Test Guest Renamed' && gname.city === 'Tenkasi', `guest updated, blanks kept (${gname.name}, ${gname.city})`);
+
+// --- 003: several sources, referrers, no driver room -------------------------
+const rpc = async (over) => (await asAnon(`select public.create_booking($1::jsonb) as r`, [booking({ charges: [], advance: null, ...over })])).r;
+const stayOf = (id) => one(`select sources, referrer_id, referrer_name from stay_totals where stay_id = '${id}'`);
+const st = (check_in, check_out, extra = {}) => ({ check_in, check_out, status: 'enquiry', pricing_mode: 'fixed', fixed_amount: 3000, ...extra });
+
+const legacy = await rpc({ stay: st('2027-06-01', '2027-06-02', { source: 'Walk-in' }) });
+ok(JSON.stringify((await stayOf(legacy.stay_id)).sources) === '["Walk-in"]', 'old single "source" from a previous app version still saves');
+
+const multi = await rpc({ stay: st('2027-06-03', '2027-06-04', { sources: ['WhatsApp', ' Referral ', '', 'WhatsApp'] }) });
+ok(JSON.stringify((await stayOf(multi.stay_id)).sources) === '["WhatsApp","Referral"]', 'sources trimmed, blanks and repeats dropped, order kept');
+
+const newRef = await rpc({ stay: st('2027-06-05', '2027-06-06', { sources: ['Referral'] }), referrer: { name: ' Selvam (driver) ', phone: '+910000000399' } });
+const nr = await stayOf(newRef.stay_id);
+ok(nr.referrer_id === newRef.referrer_id && nr.referrer_name === 'Selvam (driver)', `new referrer added and linked (${nr.referrer_name})`);
+const samePhone = await rpc({ stay: st('2027-06-07', '2027-06-08', { sources: ['Referral'] }), referrer: { name: 'Selvam', phone: '+910000000399' } });
+ok(samePhone.referrer_id === newRef.referrer_id, 'a known referrer phone reuses that referrer (no duplicate)');
+const sameName = await rpc({ stay: st('2027-06-13', '2027-06-14', { sources: ['Referral'] }), referrer: { name: 'anitha travels' } });
+ok(sameName.referrer_id === 'd1000000-0000-4000-8000-000000000003', 'the same name typed again (no phone) reuses that referrer');
+const byId = await rpc({ stay: st('2027-06-09', '2027-06-10', { sources: ['Phone', 'Referral'] }), referrer: { id: 'd1000000-0000-4000-8000-000000000001' } });
+ok((await stayOf(byId.stay_id)).referrer_name === 'Murugan (auto driver)', 'an existing referrer is picked by id');
+const noReferral = await rpc({ stay: st('2027-06-11', '2027-06-12', { sources: ['Phone'] }), referrer: { name: 'Should not save' } });
+ok(noReferral.referrer_id === null && (await one(`select count(*)::int n from referrers where name = 'Should not save'`)).n === 0,
+  'a referrer is ignored unless Referral is chosen');
+await expectError(`update stays set referrer_id = 'd1000000-0000-4000-8000-000000000001' where id = '${legacy.stay_id}'`,
+  /stays_referrer_needs_referral/, 'a referrer without Referral is refused by the database');
+await expectError(`${as('anon')} delete from referrers;`, /permission denied/, 'anon cannot delete referrers');
+await db.exec('reset role;');
+const murugan = await one(`select count(*)::int n from stay_totals where referrer_name = 'Murugan (auto driver)'`);
+ok(murugan.n === 3, `sample referrer Murugan has ${murugan.n} stays`);
+const noDriver = await one(`select count(*)::int n from information_schema.columns where table_name in ('stays','stay_totals') and column_name in ('driver_room','source')`);
+ok(noDriver.n === 0, 'driver_room and single source are gone');
+await db.exec(`set role authenticated; select set_config('request.jwt.claims', '{"role":"authenticated","email":"stranger@example.com"}', false);`);
+ok((await one(`select count(*)::int n from referrers`)).n === 0, 'non-allow-listed signed-in user sees no referrers');
+await db.exec('reset role;');
+
+// --- Upgrade path: a database set up before 003, with data, then 003 ---------
+const up = new PGlite({ extensions: { btree_gist } });
+await up.exec(STUBS);
+await up.exec(read('supabase/migrations/001_init.sql'));
+await up.exec(read('supabase/migrations/002_create_booking.sql'));
+await up.exec(`
+  insert into guests (id, name, phone, created_by) values ('a9000000-0000-4000-8000-000000000001', 'Old Guest', '+910000000888', 'K');
+  insert into stays (id, guest_id, check_in, check_out, driver_room, status, pricing_mode, nightly_rate, source, created_by) values
+    ('b9000000-0000-4000-8000-000000000001', 'a9000000-0000-4000-8000-000000000001', '2026-01-01', '2026-01-03', true, 'completed', 'per_night', 5000, 'Phone', 'K'),
+    ('b9000000-0000-4000-8000-000000000002', 'a9000000-0000-4000-8000-000000000001', '2026-02-01', '2026-02-02', false, 'completed', 'per_night', 5000, null, 'K');`);
+await up.exec(read('supabase/migrations/003_sources_referrers.sql'));
+await up.exec(read('supabase/demo_policies.sql'));
+await up.exec(read('supabase/demo_policies.sql')); // safe to run twice
+const upRows = (await up.query(`select bill_no, sources, final from stay_totals order by check_in`)).rows;
+ok(JSON.stringify(upRows.map((r) => r.sources)) === '[["Phone"],[]]' && upRows[0].final === 10000,
+  `upgrade keeps existing stays: sources ${JSON.stringify(upRows.map((r) => r.sources))}, final ${upRows[0].final}`);
+await up.exec(`set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);`);
+ok((await up.query(`select count(*)::int n from referrers`)).rows[0].n === 0, 'after upgrade the demo can read referrers');
+await up.exec('reset role;');
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

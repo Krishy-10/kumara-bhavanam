@@ -74,7 +74,7 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
     const crossesYear = months[0]!.slice(0, 4) !== months[months.length - 1]!.slice(0, 4);
 
     const picked = stays.filter(
-      (s) => (occasion === ALL || (s.occasion ?? NOT_TAGGED) === occasion) && (source === ALL || (s.source ?? NOT_TAGGED) === source),
+      (s) => (occasion === ALL || (s.occasion ?? NOT_TAGGED) === occasion) && (source === ALL || (source === NOT_TAGGED ? s.sources.length === 0 : s.sources.includes(source))),
     );
     const filtered = occasion !== ALL || source !== ALL;
     const ids = new Set(picked.map((s) => s.stay_id));
@@ -104,7 +104,7 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
       arrivals: arrivalsBy(picked, () => 'all', start, end).get('all') ?? 0,
       cancelled: picked.filter((s) => s.status === 'cancelled' && s.check_in >= start && s.check_in < end).length,
       byOccasion: ranked(bookedRevenueBy(picked, (s) => s.occasion ?? NOT_TAGGED, start, end)),
-      bySource: ranked(arrivalsBy(picked, (s) => s.source ?? NOT_TAGGED, start, end)),
+      bySource: ranked(arrivalsBy(picked, (s) => (s.sources.length > 0 ? s.sources : NOT_TAGGED), start, end)),
       future: end > today && period !== 'month',
     };
   }, [stays, payments, period, occasion, source, today]);
@@ -196,7 +196,7 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
           )}
         </Card>
 
-        <Card title="Where bookings came from" sub="Stays arriving in this period">
+        <Card title="Where bookings came from" sub="Stays arriving in this period. A booking found us more than one way counts under each.">
           {view.bySource.length ? (
             <RankedBars rows={view.bySource} format={(n) => plural(n, 'stay')} label="Bookings by source" />
           ) : (

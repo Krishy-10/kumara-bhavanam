@@ -1,12 +1,13 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useId } from 'react';
-import { Chips, FieldLabel, Group, Segmented, Stepper, TextField, Toggle } from '@/components/Controls';
+import { Chips, FieldLabel, Group, MultiChips, Segmented, Stepper, TextField } from '@/components/Controls';
 import { Icon } from '@/components/Icon';
 import type { BlockedRow, StayRow } from '@/data/types';
 import { formatDayMonth, formatRange, formatShortDay, nightsBetween } from '@/lib/dates';
 import { OCCASIONS, SOURCES, STATUS_LABEL, plural } from '@/lib/labels';
 import type { Conflicts } from '@/lib/occupancy';
-import { checkOutOf, type BookingStatus, type Draft } from './draft';
+import { checkOutOf, hasReferral, toggleSource, type BookingStatus, type Draft } from './draft';
+import { ReferrerField } from './ReferrerField';
 
 export function StepStay({
   draft,
@@ -47,10 +48,6 @@ export function StepStay({
         <Stepper label="Guests" value={draft.guestsCount} min={1} max={20} onChange={(n) => set({ guestsCount: n })} />
       </Group>
 
-      <div className="rounded-card border border-line bg-white px-4 py-1">
-        <Toggle label="Driver room" hint="Separate room for a driver or helper" checked={draft.driverRoom} onChange={(v) => set({ driverRoom: v })} />
-      </div>
-
       <Group label="Booking is">
         <Segmented<BookingStatus>
           label="Booking status"
@@ -69,9 +66,11 @@ export function StepStay({
         <Chips label="Occasion" options={OCCASIONS} value={draft.occasion as (typeof OCCASIONS)[number] | null} onChange={(v) => set({ occasion: v })} />
       </Group>
 
-      <Group label="How they found us" hint="Optional">
-        <Chips label="Source" options={SOURCES} value={draft.source as (typeof SOURCES)[number] | null} onChange={(v) => set({ source: v })} />
+      <Group label="How they found us" hint="Optional · pick all that apply">
+        <MultiChips label="How they found us" options={SOURCES} value={draft.sources} onToggle={(v) => set({ sources: toggleSource(draft.sources, v) })} />
       </Group>
+
+      {hasReferral(draft) && <ReferrerField draft={draft} set={set} />}
 
       <TextField label="Notes" hint="Optional" value={draft.notes} onChange={(v) => set({ notes: v })} placeholder="Anything to remember" />
     </div>

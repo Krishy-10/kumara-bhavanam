@@ -492,8 +492,8 @@ function Details({ stay }: { stay: StayRow }) {
   const items: [string, ReactNode][] = [
     ['Phone', <a key="p" href={`tel:${stay.guest_phone}`} className="num font-semibold text-peacock underline-offset-4 hover:underline">{formatPhone(stay.guest_phone)}</a>],
     ['Occasion', stay.occasion ?? '—'],
-    ['Came via', stay.source ?? '—'],
-    ['Driver room', stay.driver_room ? 'Yes' : 'No'],
+    ['Came via', stay.sources.length > 0 ? stay.sources.join(', ') : '—'],
+    ...(stay.referrer_name ? [['Referred by', stay.referrer_name] as [string, string]] : []),
     ['Booked by', `${stay.created_by}, ${formatDayMonth(istDate(stay.created_at))}`],
   ];
   return (

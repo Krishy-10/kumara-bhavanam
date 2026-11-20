@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DEMO ONLY · seed.sql · the PRD's "Demo sample data" (today = 19 Nov 2026)
--- Run on the kb-demo project after migrations/001_init.sql and demo_policies.sql.
+-- Run on the kb-demo project after the migrations (001, 002, 003) and demo_policies.sql.
 -- It wipes every app table first, so it can be re-run to reset the demo.
 -- NEVER run this on the live project.
 --
@@ -22,7 +22,7 @@
 begin;
 
 truncate table public.payments, public.charges, public.id_checks, public.stays,
-               public.guests, public.blocked_dates, public.message_templates,
+               public.guests, public.referrers, public.blocked_dates, public.message_templates,
                public.bill_counters
   restart identity cascade;
 
@@ -41,16 +41,16 @@ insert into public.guests (id, name, phone, city, language, created_at, created_
 
 -- Stays (bill numbers continue after the 40 bookings in seed_history.sql) -----
 insert into public.stays
-  (id, guest_id, bill_no, check_in, check_out, guests_count, driver_room, status,
-   pricing_mode, nightly_rate, fixed_amount, occasion, source, created_at, created_by) values
+  (id, guest_id, bill_no, check_in, check_out, guests_count, status,
+   pricing_mode, nightly_rate, fixed_amount, occasion, sources, created_at, created_by) values
   ('b0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'KB-2026-0041',
-   '2026-11-14', '2026-11-22', 8, true,  'checked_in', 'fixed',     null, 40000, 'Pilgrimage',    'Returning guest', '2026-10-20 11:00+05:30', 'Krishna Kumar'),
+   '2026-11-14', '2026-11-22', 8, 'checked_in', 'fixed',     null, 40000, 'Pilgrimage', array['Returning guest'], '2026-10-20 11:00+05:30', 'Krishna Kumar'),
   ('b0000000-0000-4000-8000-000000000004', 'a0000000-0000-4000-8000-000000000004', 'KB-2026-0042',
-   '2026-10-30', '2026-11-02', 5, false, 'completed',  'per_night', 4500, null,  'Holiday',       'WhatsApp',        '2026-10-25 09:20+05:30', 'Krishna Kumar'),
+   '2026-10-30', '2026-11-02', 5, 'completed',  'per_night', 4500, null,  'Holiday',       array['WhatsApp'], '2026-10-25 09:20+05:30', 'Krishna Kumar'),
   ('b0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000002', 'KB-2026-0043',
-   '2026-11-24', '2026-11-26', 6, false, 'confirmed',  'per_night', 5000, null,  'Temple visit',  'Returning guest', '2026-11-10 16:45+05:30', 'Padmanabhan'),
+   '2026-11-24', '2026-11-26', 6, 'confirmed',  'per_night', 5000, null,  'Temple visit', array['Returning guest'], '2026-11-10 16:45+05:30', 'Padmanabhan'),
   ('b0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000003', 'KB-2026-0044',
-   '2026-12-04', '2026-12-06', 4, true,  'tentative',  'per_night', 5000, null,  'Wedding',       'Phone',           '2026-11-17 18:35+05:30', 'Padmanabhan');
+   '2026-12-04', '2026-12-06', 4, 'tentative',  'per_night', 5000, null,  'Wedding',       array['Phone'],    '2026-11-17 18:35+05:30', 'Padmanabhan');
 
 -- Charges and discounts ------------------------------------------------------
 insert into public.charges (stay_id, kind, label, amount, created_at, created_by) values

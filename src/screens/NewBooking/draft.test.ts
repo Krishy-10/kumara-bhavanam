@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isISODate } from '@/lib/dates';
-import { newDraft, restoreDraft } from './draft';
+import { newDraft, restoreDraft, stayStepError, toggleSource, toPayload } from './draft';
 
 const today = '2026-11-20';
 
@@ -60,5 +60,36 @@ describe('restoreDraft', () => {
     expect(d.nightlyRate).toBeNull();
     expect(d.lines).toEqual([]);
     expect(d.phone).toBe('');
+  });
+});
+
+describe('sources and referrer', () => {
+  const base = { ...newDraft(today), phone: '98431 12345', name: 'Priya', nightlyRate: 5000 };
+
+  it('turns a single source from an older saved draft into a list', () => {
+    expect(restoreDraft({ ...base, sources: undefined, source: 'WhatsApp' }, today).sources).toEqual(['WhatsApp']);
+    expect(restoreDraft({ ...base, sources: ['Online', 'Bogus', 'Phone'] }, today).sources).toEqual(['Phone', 'Online']);
+  });
+
+  it('toggles sources and keeps the screen order', () => {
+    expect(toggleSource(['Online'], 'Phone')).toEqual(['Phone', 'Online']);
+    expect(toggleSource(['Phone', 'Online'], 'Phone')).toEqual(['Online']);
+  });
+
+  it('checks the referrer only for a Referral booking', () => {
+    expect(stayStepError({ ...base, sources: ['Phone'], referrerPhone: 'abc' })).toBeNull();
+    expect(stayStepError({ ...base, sources: ['Referral'], referrerName: 'Murugan', referrerPhone: '123' })).toMatch(/phone/);
+    expect(stayStepError({ ...base, sources: ['Referral'], referrerPhone: '98431 00301' })).toMatch(/name/);
+    expect(stayStepError({ ...base, sources: ['Referral'], referrerName: 'Murugan' })).toBeNull();
+  });
+
+  it('sends the referrer only with Referral: a picked one by id, a new one by name', () => {
+    expect(toPayload({ ...base, sources: ['Phone'], referrerName: 'X' }, 'K').referrer).toBeNull();
+    expect(toPayload({ ...base, sources: ['Referral'], referrerId: 'r1', referrerName: 'Murugan' }, 'K').referrer).toEqual({ id: 'r1' });
+    expect(toPayload({ ...base, sources: ['Referral', 'WhatsApp'], referrerName: ' Murugan ', referrerPhone: '98431 00301' }, 'K')).toMatchObject({
+      stay: { sources: ['Referral', 'WhatsApp'] },
+      referrer: { name: 'Murugan', phone: '+919843100301' },
+    });
+    expect(toPayload({ ...base, sources: ['Referral'] }, 'K').referrer).toBeNull();
   });
 });

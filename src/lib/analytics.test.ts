@@ -22,11 +22,11 @@ describe('periods', () => {
   });
 });
 
-const stays: (StayDates & { source: string })[] = [
-  { stay_id: 'a', check_in: '2026-11-14', check_out: '2026-11-22', status: 'checked_in', source: 'Phone' },
-  { stay_id: 'b', check_in: '2026-11-24', check_out: '2026-11-26', status: 'confirmed', source: 'WhatsApp' },
-  { stay_id: 'c', check_in: '2026-11-27', check_out: '2026-11-28', status: 'cancelled', source: 'Phone' },
-  { stay_id: 'd', check_in: '2026-11-28', check_out: '2026-11-29', status: 'tentative', source: 'Phone' },
+const stays: (StayDates & { sources: string[] })[] = [
+  { stay_id: 'a', check_in: '2026-11-14', check_out: '2026-11-22', status: 'checked_in', sources: ['Phone', 'Referral'] },
+  { stay_id: 'b', check_in: '2026-11-24', check_out: '2026-11-26', status: 'confirmed', sources: ['WhatsApp'] },
+  { stay_id: 'c', check_in: '2026-11-27', check_out: '2026-11-28', status: 'cancelled', sources: ['Phone'] },
+  { stay_id: 'd', check_in: '2026-11-28', check_out: '2026-11-29', status: 'tentative', sources: ['Phone', 'Phone'] },
 ];
 
 describe('occupancy and counts', () => {
@@ -34,9 +34,10 @@ describe('occupancy and counts', () => {
     expect(occupancy(stays, '2026-11-01', '2026-12-01')).toEqual({ booked: 10, nights: 30, pct: 33 });
   });
 
-  it('counts arrivals by source, skipping cancelled', () => {
-    const m = arrivalsBy(stays, (s) => s.source, '2026-11-01', '2026-12-01');
+  it('counts arrivals by source, once under each source, skipping cancelled', () => {
+    const m = arrivalsBy(stays, (s) => s.sources, '2026-11-01', '2026-12-01');
     expect(m.get('Phone')).toBe(2);
+    expect(m.get('Referral')).toBe(1);
     expect(m.get('WhatsApp')).toBe(1);
   });
 });

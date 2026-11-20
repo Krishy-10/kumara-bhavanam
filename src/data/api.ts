@@ -15,6 +15,7 @@ import type {
   DocType,
   GuestEdit,
   GuestRow,
+  ReferrerRow,
   IdCheckRow,
   Language,
   NewBlocked,
@@ -87,6 +88,10 @@ export function fetchBlockedDates(): Promise<BlockedRow[]> {
 
 export function fetchGuests(): Promise<GuestRow[]> {
   return unwrap(db().from('guests').select('*').order('name'));
+}
+
+export function fetchReferrers(): Promise<ReferrerRow[]> {
+  return unwrap(db().from('referrers').select('*').is('archived_at', null).order('name'));
 }
 
 export async function fetchGuestByPhone(phone: string): Promise<GuestRow | null> {
