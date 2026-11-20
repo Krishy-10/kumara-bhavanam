@@ -11,6 +11,7 @@ import { formatDayMonth, formatLongDay, formatShortDay, monthKey, monthRange, ni
 import { formatRupees } from '@/lib/format';
 import { STATUS_LABEL, plural } from '@/lib/labels';
 import { collectedBetween, DUE_NOW_STATUSES, toCollect } from '@/lib/money';
+import { PipelineLink } from '@/screens/Pipeline/Pipeline';
 import { currentStay, nextArrival, nextFreeWindow, nightProgress, occupiedRanges } from '@/lib/occupancy';
 
 const rise = (i: number) => ({
@@ -157,8 +158,12 @@ function HomeBody({
         </motion.div>
       )}
 
+      <motion.div {...rise(3)} className="px-[18px] empty:hidden">
+        <PipelineLink stays={stays} />
+      </motion.div>
+
       {now && (
-        <motion.p {...rise(3)} className="flex items-center gap-2 px-[22px] text-[14px] text-muted">
+        <motion.p {...rise(4)} className="flex items-center gap-2 px-[22px] text-[14px] text-muted">
           <span className="h-2 w-2 rounded-full bg-leaf" aria-hidden="true" />
           {free.until
             ? `Floor is free ${formatRangeShort(free.from, free.until)}`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isISODate } from '@/lib/dates';
-import { newDraft, restoreDraft, stayStepError, toggleSource, toPayload } from './draft';
+import { newDraft, pickStayDay, restoreDraft, stayStepError, toggleSource, toPayload } from './draft';
 
 const today = '2026-11-20';
 
@@ -91,5 +91,21 @@ describe('sources and referrer', () => {
       referrer: { name: 'Murugan', phone: '+919843100301' },
     });
     expect(toPayload({ ...base, sources: ['Referral'] }, 'K').referrer).toBeNull();
+  });
+});
+
+describe('pickStayDay', () => {
+  it('first tap picks check-in, the second a later day picks check-out', () => {
+    const shown = { checkIn: '2027-05-10', checkOut: '2027-05-12' };
+    const a = pickStayDay(shown, '2027-05-20');
+    expect(a).toEqual({ checkIn: '2027-05-20', checkOut: null });
+    expect(pickStayDay(a, '2027-05-23')).toEqual({ checkIn: '2027-05-20', checkOut: '2027-05-23' });
+  });
+
+  it('a tap on or before the check-in starts again; very long stays stop at 60 nights', () => {
+    const a = { checkIn: '2027-05-20', checkOut: null };
+    expect(pickStayDay(a, '2027-05-20')).toEqual({ checkIn: '2027-05-20', checkOut: null });
+    expect(pickStayDay(a, '2027-05-02')).toEqual({ checkIn: '2027-05-02', checkOut: null });
+    expect(pickStayDay(a, '2027-09-01')).toEqual({ checkIn: '2027-05-20', checkOut: '2027-07-19' });
   });
 });

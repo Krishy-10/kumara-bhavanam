@@ -1,12 +1,14 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useId } from 'react';
-import { Chips, FieldLabel, Group, MultiChips, Segmented, Stepper, TextField } from '@/components/Controls';
+import { useId, useState } from 'react';
+import { Chips, Group, MultiChips, Segmented, Stepper, TextField } from '@/components/Controls';
 import { Icon } from '@/components/Icon';
 import type { BlockedRow, StayRow } from '@/data/types';
+import { useToday } from '@/hooks/useToday';
 import { formatDayMonth, formatRange, formatShortDay, nightsBetween } from '@/lib/dates';
 import { OCCASIONS, SOURCES, STATUS_LABEL, plural } from '@/lib/labels';
 import type { Conflicts } from '@/lib/occupancy';
-import { checkOutOf, hasReferral, toggleSource, type BookingStatus, type Draft } from './draft';
+import { checkOutOf, hasReferral, MAX_NIGHTS, toggleSource, type BookingStatus, type Draft } from './draft';
+import { StayDatesSheet } from './StayDatesSheet';
 import { ReferrerField } from './ReferrerField';
 
 export function StepStay({
@@ -20,27 +22,43 @@ export function StepStay({
   conflicts: Conflicts<StayRow, BlockedRow>;
   checking: boolean;
 }) {
-  const dateId = useId();
+  const labelId = useId();
   const checkOut = checkOutOf(draft);
+  const [picking, setPicking] = useState(false);
+  const today = useToday();
+  const otherYear = (d: string) => (d.slice(0, 4) !== today.slice(0, 4) ? ` ${d.slice(0, 4)}` : '');
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <FieldLabel htmlFor={dateId} hint={formatShortDay(draft.checkIn)}>
-          Check-in
-        </FieldLabel>
-        <input
-          id={dateId}
-          type="date"
-          value={draft.checkIn}
-          onChange={(e) => e.target.value && set({ checkIn: e.target.value })}
-          className="num min-h-touch w-full rounded-2xl border border-line-strong bg-white px-4 text-[18px] font-semibold focus:border-peacock focus:outline-none"
-        />
+        <p id={labelId} className="mb-1.5 text-[15px] font-semibold text-teak">
+          Dates
+        </p>
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          aria-labelledby={labelId}
+          aria-describedby={`${labelId}-v`}
+          className="flex min-h-[64px] w-full items-center gap-3 rounded-2xl border border-line-strong bg-white px-4 py-2 text-left hover:border-peacock/40 focus:border-peacock"
+        >
+          <Icon name="calendar" size={24} className="shrink-0 text-peacock" />
+          <span id={`${labelId}-v`} className="flex min-w-0 flex-1 flex-col">
+            <span className="num text-[17px] font-semibold">
+              {formatShortDay(draft.checkIn)}
+              {draft.checkIn.slice(0, 4) !== checkOut.slice(0, 4) && otherYear(draft.checkIn)} → {formatShortDay(checkOut)}
+              {otherYear(checkOut) || otherYear(draft.checkIn)}
+            </span>
+            <span className="text-[14px] text-muted">{plural(draft.nights, 'night')} · tap to pick on the calendar</span>
+          </span>
+          <Icon name="chevron" size={20} className="shrink-0 text-muted" />
+        </button>
       </div>
 
       <Group label="Nights" hint={`Check-out ${formatShortDay(checkOut)}`}>
-        <Stepper label="Nights" value={draft.nights} min={1} max={60} onChange={(n) => set({ nights: n })} />
+        <Stepper label="Nights" value={draft.nights} min={1} max={MAX_NIGHTS} onChange={(n) => set({ nights: n })} />
       </Group>
+
+      <StayDatesSheet open={picking} onClose={() => setPicking(false)} checkIn={draft.checkIn} nights={draft.nights} onPick={(p) => set(p)} />
 
       <Availability conflicts={conflicts} checking={checking} checkIn={draft.checkIn} checkOut={checkOut} />
 

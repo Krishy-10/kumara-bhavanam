@@ -84,6 +84,19 @@ export function newDraft(today: ISODate): Draft {
 
 export const checkOutOf = (d: Draft): ISODate => addDays(d.checkIn, d.nights);
 
+export const MAX_NIGHTS = 60;
+
+/**
+ * The date picker: tap the check-in day, then the check-out day. A tap on or
+ * before the check-in starts again from that day. Returns the picked
+ * check-in and, once the second tap lands, the check-out.
+ */
+export function pickStayDay(picking: { checkIn: ISODate; checkOut: ISODate | null }, day: ISODate): { checkIn: ISODate; checkOut: ISODate | null } {
+  if (picking.checkOut !== null || day <= picking.checkIn) return { checkIn: day, checkOut: null };
+  const latest = addDays(picking.checkIn, MAX_NIGHTS);
+  return { checkIn: picking.checkIn, checkOut: day > latest ? latest : day };
+}
+
 export const REFERRAL = 'Referral';
 export const hasReferral = (d: Pick<Draft, 'sources'>) => d.sources.includes(REFERRAL);
 

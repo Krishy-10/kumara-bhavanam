@@ -14,8 +14,9 @@ import type { BlockedRow, StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
 import { addMonths, formatLongDay, formatMonthYear, formatRange, monthKey, monthRange, nightsBetween, type ISODate } from '@/lib/dates';
 import { bookedNightsIn, calendarDay, currentStay } from '@/lib/occupancy';
+import { PipelineLink } from '@/screens/Pipeline/Pipeline';
 import { BlockSheet } from './BlockSheet';
-import { MonthCalendar } from './MonthCalendar';
+import { MonthCalendar } from '@/components/MonthCalendar';
 
 type ListTab = 'upcoming' | 'past' | 'cancelled';
 const PAGE = 12;
@@ -83,6 +84,12 @@ export function Stays() {
               month={month}
               direction={direction}
               onMonth={changeMonth}
+              onJump={(m) => {
+                if (m === month) return;
+                setDirection(m > month ? 1 : -1);
+                setSelected(null);
+                setParams(m === monthKey(today) ? {} : { month: m }, { replace: true });
+              }}
               stays={stays.data}
               blocked={blocked.data}
               today={today}
@@ -132,6 +139,7 @@ export function Stays() {
           )}
 
           <section className="mt-5 px-4" aria-label="Stay lists">
+            <PipelineLink stays={stays.data} className="mb-3" />
             <Segmented<ListTab>
               label="Which stays"
               name="stay-tab"

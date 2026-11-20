@@ -126,8 +126,18 @@ react-router-dom, @tanstack/react-query, jspdf (bill PDF), recharts (analytics),
 - Card radius 16–28 px, pills 999 px. Kolam dot grid only on the current-stay card and night-progress dots.
 - Format money with Indian grouping (₹1,00,000) via `src/lib/format.ts`.
 
+## Round 2 scope (decided Nov 21 2026)
+Moved into V1 by the user, built in this order with a checkpoint after each:
+1. Booking date picker with quick month jump; Pipeline board (Enquiry → Tentative → Confirmed).
+2. Ledger: every booking's money in one list, past bookings can be added, referrer commission, CSV export.
+   Commission is typed per booking (integer rupees), never on the guest's bill.
+3. Tasks and reminders (in-app only, nothing sends) and pre-check-in / post-check-out checklists.
+4. Expenses (water, cleaning…), never on the guest's bill.
+Live mode (Google sign-in, kb-live project) comes after this round and before any real guest data.
+Money rules for commission and expenses (void-only? counted by date paid?) are asked before phase 2/4 starts.
+
 ## Out of scope for V1 (don't build, don't scaffold)
-Business Pulse, CSV export, Stay Value Calculator, Google sign-in, PIN, offline writes, Form C workflow, GST, Zoho, multiple properties, "Come again" / returning-guest offer and festival rebooking messages. (Analytics charts were moved into V1 by the user.)
+Business Pulse, Stay Value Calculator, Google sign-in, PIN, offline writes, Form C workflow, GST, Zoho, multiple properties, "Come again" / returning-guest offer and festival rebooking messages. (Analytics charts, CSV export and the pipeline were moved into V1 by the user.)
 
 ## Working agreement
 - Work in the phases the user set; stop at each checkpoint.
