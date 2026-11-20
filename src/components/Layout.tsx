@@ -64,15 +64,10 @@ export function Screen({ children, withNav = true, className }: { children: Reac
   return (
     <div className="mx-auto flex min-h-dvh max-w-app flex-col">
       <StatusStrip />
-      <motion.main
-        id="main"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className={cx('flex flex-1 flex-col', withNav && 'pb-[92px]', className)}
-      >
+      {/* CSS entrance (see index.css): the screen can never stay invisible. */}
+      <main id="main" className={cx('screen-in flex flex-1 flex-col', withNav && 'pb-[92px]', className)}>
         {children}
-      </motion.main>
+      </main>
       {withNav && <BottomNav />}
     </div>
   );

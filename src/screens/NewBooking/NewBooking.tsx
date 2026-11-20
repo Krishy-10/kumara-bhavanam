@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Button } from '@/components/Button';
@@ -13,7 +13,7 @@ import { findConflicts } from '@/lib/occupancy';
 import { normalizePhone } from '@/lib/phone';
 import { readSession, writeSession } from '@/lib/storage';
 import { useCurrentUser } from '@/session/UserContext';
-import { checkOutOf, draftPricing, draftTotals, guestStepError, lastNightlyRate, newDraft, priceStepError, toPayload, type Draft } from './draft';
+import { checkOutOf, draftPricing, draftTotals, guestStepError, lastNightlyRate, newDraft, priceStepError, restoreDraft, toPayload, type Draft } from './draft';
 import { StepGuest } from './StepGuest';
 import { StepPrice } from './StepPrice';
 import { StepStay } from './StepStay';
@@ -39,7 +39,7 @@ export function NewBooking() {
   const [draft, setDraft] = useState<Draft>(() =>
     start?.checkIn || start?.phone
       ? { ...newDraft(today), checkIn: start.checkIn ?? today, phone: start.phone ?? '' }
-      : (readSession<Draft>(DRAFT_KEY) ?? newDraft(today)),
+      : restoreDraft(readSession<unknown>(DRAFT_KEY), today),
   );
   // Drop that start state so a reload keeps the typed draft instead.
   useEffect(() => {
@@ -122,19 +122,13 @@ export function NewBooking() {
       </div>
 
       <div className="relative flex-1 overflow-x-hidden px-[18px] pb-6 pt-4">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -24 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {step === 1 && <StepGuest draft={draft} set={set} />}
-            {step === 2 && <StepStay draft={draft} set={set} conflicts={conflicts} checking={stays.isPending || blocked.isPending} />}
-            {step === 3 && <StepPrice draft={draft} set={set} returning={returning} />}
-          </motion.div>
-        </AnimatePresence>
+        {/* The new step shows at once and slides in with CSS; nothing waits
+            for the old step to animate out, so quick taps can't leave a gap. */}
+        <div key={step} className="step-in">
+          {step === 1 && <StepGuest draft={draft} set={set} />}
+          {step === 2 && <StepStay draft={draft} set={set} conflicts={conflicts} checking={stays.isPending || blocked.isPending} />}
+          {step === 3 && <StepPrice draft={draft} set={set} returning={returning} />}
+        </div>
       </div>
 
       <div className="sticky bottom-0 z-10 pb-safe">

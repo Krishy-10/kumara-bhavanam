@@ -17,6 +17,13 @@ function toEpochDay(d: ISODate): number {
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / DAY_MS;
 }
 
+/** A real calendar date in 'YYYY-MM-DD' form ('2026-02-30' is not). */
+export function isISODate(d: unknown): d is ISODate {
+  if (typeof d !== 'string' || !ISO_RE.test(d)) return false;
+  const day = toEpochDay(d);
+  return Number.isFinite(day) && fromEpochDay(day) === d;
+}
+
 function fromEpochDay(day: number): ISODate {
   return new Date(day * DAY_MS).toISOString().slice(0, 10);
 }

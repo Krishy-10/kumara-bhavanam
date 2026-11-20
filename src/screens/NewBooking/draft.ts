@@ -1,6 +1,6 @@
 /** New booking: the draft kept across the three steps, its checks and its payload. */
 import type { BookingPayload, Language, PaymentMode, StayRow } from '@/data/types';
-import { addDays, type ISODate } from '@/lib/dates';
+import { addDays, isISODate, type ISODate } from '@/lib/dates';
 import { normalizePhone } from '@/lib/phone';
 import { computeStayTotals, type ChargeKind, type PricingMode, type StayPricing, type StayStatus, type StayTotals } from '@/lib/money';
 
@@ -75,6 +75,55 @@ export function newDraft(today: ISODate): Draft {
 }
 
 export const checkOutOf = (d: Draft): ISODate => addDays(d.checkIn, d.nights);
+
+const STATUSES: readonly BookingStatus[] = ['enquiry', 'tentative', 'confirmed'];
+const MODES: readonly PaymentMode[] = ['cash', 'upi', 'bank_transfer', 'card', 'other'];
+const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
+const isRupees = (v: unknown): v is number | null => v === null || isInt(v, 0, 10_000_000);
+const isLine = (l: unknown): l is DraftLine => {
+  const x = l as Partial<DraftLine> | null;
+  return !!x && typeof x.id === 'string' && (x.kind === 'charge' || x.kind === 'discount') && typeof x.label === 'string' && isInt(x.amount, 1, 10_000_000);
+};
+
+/**
+ * A draft read back from the browser (after a reload, or saved by an older
+ * version of the app). Every field is checked; anything missing or malformed
+ * falls back to the default, so a bad saved draft can never break the screen.
+ */
+export function restoreDraft(raw: unknown, today: ISODate): Draft {
+  const d = newDraft(today);
+  if (!raw || typeof raw !== 'object') return d;
+  const r = raw as Record<string, unknown>;
+  const str = (k: keyof Draft) => (typeof r[k] === 'string' ? (r[k] as string) : (d[k] as string));
+  const bool = (k: keyof Draft) => (typeof r[k] === 'boolean' ? (r[k] as boolean) : (d[k] as boolean));
+  const strOrNull = (k: keyof Draft) => (typeof r[k] === 'string' || r[k] === null ? (r[k] as string | null) : (d[k] as string | null));
+  return {
+    phone: str('phone'),
+    name: str('name'),
+    city: str('city'),
+    email: str('email'),
+    language: r.language === 'ta' ? 'ta' : 'en',
+    foreign: bool('foreign'),
+    nationality: str('nationality'),
+    filledFrom: strOrNull('filledFrom'),
+    checkIn: isISODate(r.checkIn) ? r.checkIn : d.checkIn,
+    nights: isInt(r.nights, 1, 60) ? r.nights : d.nights,
+    guestsCount: isInt(r.guestsCount, 1, 20) ? r.guestsCount : d.guestsCount,
+    driverRoom: bool('driverRoom'),
+    status: STATUSES.includes(r.status as BookingStatus) ? (r.status as BookingStatus) : d.status,
+    occasion: strOrNull('occasion'),
+    source: strOrNull('source'),
+    notes: str('notes'),
+    pricingMode: r.pricingMode === 'fixed' ? 'fixed' : 'per_night',
+    nightlyRate: isRupees(r.nightlyRate) ? r.nightlyRate : d.nightlyRate,
+    fixedAmount: isRupees(r.fixedAmount) ? r.fixedAmount : d.fixedAmount,
+    rateTouched: bool('rateTouched'),
+    lines: Array.isArray(r.lines) ? r.lines.filter(isLine) : d.lines,
+    advance: isRupees(r.advance) ? r.advance : d.advance,
+    advanceMode: MODES.includes(r.advanceMode as PaymentMode) ? (r.advanceMode as PaymentMode) : d.advanceMode,
+    advanceOn: isISODate(r.advanceOn) ? r.advanceOn : d.advanceOn,
+  };
+}
 
 /** The most recent per-night rate entered, or ₹5,000 for the very first booking. */
 export function lastNightlyRate(stays: StayRow[] | undefined): number {

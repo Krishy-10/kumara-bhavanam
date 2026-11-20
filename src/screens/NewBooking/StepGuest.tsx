@@ -71,20 +71,18 @@ export function StepGuest({ draft, set }: { draft: Draft; set: (p: Partial<Draft
         error={draft.phone.replace(/\D/g, '').length >= 10 && !phone ? 'That doesn’t look like a phone number.' : null}
       />
 
-      <AnimatePresence mode="wait">
+      {/* Only one of these shows at a time; each fades in with CSS and
+          nothing waits on the previous one to animate out. */}
         {phone && lookup.isPending && (
-          <motion.p key="looking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="-mt-2 text-[14px] text-muted" role="status">
+          <p key="looking" className="fade-in -mt-2 text-[14px] text-muted" role="status">
             Looking up this number…
-          </motion.p>
+          </p>
         )}
         {showDetails && guest && (
-          <motion.div
+          <div
             key="found"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
             role="status"
-            className="-mt-1 flex items-center gap-3 rounded-card border border-peacock/20 bg-peacock/5 p-4"
+            className="screen-in -mt-1 flex items-center gap-3 rounded-card border border-peacock/20 bg-peacock/5 p-4"
           >
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-peacock text-[13px] font-bold text-white">✓</span>
             <span className="flex flex-col">
@@ -101,14 +99,13 @@ export function StepGuest({ draft, set }: { draft: Draft; set: (p: Partial<Draft
                 </span>
               )}
             </span>
-          </motion.div>
+          </div>
         )}
         {showDetails && !guest && !lookup.error && (
-          <motion.p key="new" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="-mt-2 text-[14px] text-muted" role="status">
+          <p key="new" className="fade-in -mt-2 text-[14px] text-muted" role="status">
             New guest.{oddIndian && ' Check the number: Indian mobiles start with 6, 7, 8 or 9.'}
-          </motion.p>
+          </p>
         )}
-      </AnimatePresence>
 
       {lookup.error && <p className="text-[14px] text-terracotta">{lookup.error.message}</p>}
 

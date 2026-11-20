@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MotionConfig } from 'motion/react';
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AccessGate } from '@/session/AccessGate';
 import { RequireUser } from '@/session/RequireUser';
 import { UserProvider } from '@/session/UserContext';
@@ -32,6 +33,7 @@ export function App() {
         <BrowserRouter>
           <AccessGate>
             <UserProvider>
+              <ErrorBoundary>
               <Routes>
                 <Route path="/who" element={<Picker />} />
                 <Route path="/" element={<RequireUser><Home /></RequireUser>} />
@@ -44,6 +46,7 @@ export function App() {
                 <Route path="/insights" element={<RequireUser><Suspense fallback={null}><Insights /></Suspense></RequireUser>} />
                 <Route path="*" element={<RequireUser><Home /></RequireUser>} />
               </Routes>
+              </ErrorBoundary>
             </UserProvider>
           </AccessGate>
         </BrowserRouter>
