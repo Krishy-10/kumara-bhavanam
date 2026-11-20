@@ -35,6 +35,7 @@ await db.exec(read('supabase/migrations/002_create_booking.sql'));
 await db.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await db.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 await db.exec(read('supabase/migrations/005_tasks_checklists.sql'));
+await db.exec(read('supabase/migrations/006_expenses.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -51,6 +52,9 @@ const homeChecks = async (label) => {
   ok(tc.v === 5000, `${label}: to collect ${tc.v}`);
 };
 await homeChecks('seed');
+const spentNov = async () => (await one(`select coalesce(sum(amount), 0)::int v, count(*)::int n from expenses where not voided and paid_on >= '2026-11-01' and paid_on < '2026-12-01'`));
+let sn = await spentNov();
+ok(sn.v === 5030 && sn.n === 5, `seed: spent in Nov ${sn.v} from ${sn.n} expenses (the voided 850 counts for nothing)`);
 const pri = await one(`select final, balance from stay_totals where guest_name = 'Priya Sundaram' and status = 'confirmed'`);
 ok(pri.final === 10000 && pri.balance === 8000, `Priya final ${pri.final}, due ${pri.balance}`);
 const mee = await db.query(`select to_char(night, 'YYYY-MM') m, sum(amount)::int a from stay_night_revenue r join stays s on s.id = r.stay_id
@@ -60,6 +64,10 @@ ok(JSON.stringify(mee.rows) === JSON.stringify([{ m: '2026-10', a: 9000 }, { m: 
 await db.exec(read('supabase/seed_history.sql'));
 console.log('history ok');
 await homeChecks('with history');
+sn = await spentNov();
+ok(sn.v === 5030, `with history: spent in Nov still ${sn.v}`);
+const hx = await one(`select count(*)::int n, min(paid_on)::text a, max(paid_on)::text b from expenses where paid_on < '2026-11-01'`);
+ok(hx.n === 36 && hx.a === '2025-11-05' && hx.b === '2026-10-20', `history expenses: ${hx.n} from ${hx.a} to ${hx.b}`);
 const cnt = await one(`select count(*)::int n, count(*) filter (where bill_no like 'KB-2026-%')::int n26 from stays`);
 ok(cnt.n26 === 44, `stays ${cnt.n}, 2026 bills ${cnt.n26}`);
 const dup = await one(`select count(*)::int n from (select bill_no from stays group by 1 having count(*) > 1) x`);
@@ -323,6 +331,29 @@ await db.exec('reset role;');
 await db.exec(read('supabase/demo_policies.sql'));
 ok(true, 'demo_policies.sql re-runs after 005');
 
+// --- Expenses (006) -----------------------------------------------------------
+await asAnonExec(`insert into expenses (id, category, note, amount, mode, paid_on, stay_id, created_by) values
+  ('e6000000-0000-4000-8000-0000000000a1', 'Repairs', 'Balcony tap', 750, 'cash', '2026-11-20', 'b0000000-0000-4000-8000-000000000001', 'Krishna Kumar')`);
+ok((await one(`select amount from expenses where id = 'e6000000-0000-4000-8000-0000000000a1'`)).amount === 750, 'anon can add an expense linked to a stay');
+await expectError(`update expenses set amount = 700 where id = 'e6000000-0000-4000-8000-0000000000a1'`, /cannot be edited/, 'expense edit refused');
+await expectError(`delete from expenses where id = 'e6000000-0000-4000-8000-0000000000a1'`, /never deleted/, 'expense delete refused');
+await expectError(`${as('anon')} delete from expenses;`, /permission denied/, 'anon has no delete on expenses');
+await db.exec('reset role;');
+await expectError(`update expenses set voided = true where id = 'e6000000-0000-4000-8000-0000000000a1'`, /expenses_void_has_reason/, 'voiding an expense needs a reason');
+await asAnonExec(`update expenses set voided = true, void_reason = 'Wrong amount', voided_by = 'Krishna Kumar' where id = 'e6000000-0000-4000-8000-0000000000a1'`);
+ok((await one(`select voided from expenses where id = 'e6000000-0000-4000-8000-0000000000a1'`)).voided === true, 'anon can void an expense with a reason');
+await expectError(`update expenses set voided = false, void_reason = null, voided_by = null where id = 'e6000000-0000-4000-8000-0000000000a1'`, /already voided/, 'a voided expense cannot be restored');
+await expectError(`insert into expenses (category, amount, paid_on, created_by) values ('Electricity', 0, '2026-11-20', 'K')`, /check constraint/, 'zero expense refused');
+ok((await one(`select data_type from information_schema.columns where table_name = 'expenses' and column_name = 'amount'`)).data_type === 'integer', 'expense amounts are whole rupees (integer column)');
+await expectError(`insert into expenses (category, amount, paid_on, created_by) values ('Snacks', 100, '2026-11-20', 'K')`, /check constraint/, 'unknown category refused');
+await expectError(`insert into expenses (category, amount, paid_on, created_by) values ('Other', 100, '2026-11-20', 'K')`, /expenses_other_has_note/, '"Other" needs a note');
+await expectError(`insert into expenses (category, amount, paid_on, created_by) values ('Water', 100, '2026-11-20', ' ')`, /check constraint/, 'an expense records who added it');
+await db.exec(`set role authenticated; select set_config('request.jwt.claims', '{"role":"authenticated","email":"stranger@example.com"}', false);`);
+ok((await one(`select count(*)::int n from expenses`)).n === 0, 'non-allow-listed signed-in user sees no expenses');
+await db.exec('reset role;');
+const lk = await one(`select final, balance from stay_totals where stay_id = 'b0000000-0000-4000-8000-000000000001'`);
+ok(lk.final === 40000 && lk.balance === 5000, 'an expense linked to a stay never touches its bill');
+
 // --- Upgrade path: a database set up before 003, with data, then 003 ---------
 const up = new PGlite({ extensions: { btree_gist } });
 await up.exec(STUBS);
@@ -336,6 +367,7 @@ await up.exec(`
 await up.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await up.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 await up.exec(read('supabase/migrations/005_tasks_checklists.sql'));
+await up.exec(read('supabase/migrations/006_expenses.sql'));
 await up.exec(read('supabase/demo_policies.sql'));
 await up.exec(read('supabase/demo_policies.sql')); // safe to run twice
 const upRows = (await up.query(`select bill_no, sources, final from stay_totals order by check_in`)).rows;
@@ -348,6 +380,7 @@ const upK = (await up.query(`select commission, commission_owed from stay_totals
 ok(upK.commission === 0 && upK.commission_owed === 0, 'after upgrade, older stays show no commission');
 ok((await up.query(`select count(*)::int n from checklist_items`)).rows[0].n === 13, 'after upgrade the demo can read the 13 starter checklist items');
 ok((await up.query(`select count(*)::int n from tasks`)).rows[0].n === 0, 'after upgrade the demo can read tasks');
+ok((await up.query(`select count(*)::int n from expenses`)).rows[0].n === 0, 'after upgrade the demo can read expenses');
 await up.exec('reset role;');
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

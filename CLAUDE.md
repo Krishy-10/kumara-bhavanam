@@ -33,9 +33,10 @@ Database (see SETUP.md), run in the Supabase SQL editor in this order:
 3. `supabase/migrations/003_sources_referrers.sql` (several sources per stay, referrers list, driver room dropped; create_booking v2)
 4. `supabase/migrations/004_commission_past_stays.sql` (commissions + commission_payouts, stay_totals commission columns; create_booking v3 for past stays)
 5. `supabase/migrations/005_tasks_checklists.sql` (checklist_items with starter items, checklist_ticks, tasks; no money)
-6. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
-7. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-8. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
+6. `supabase/migrations/006_expenses.sql` (expenses: void-only, by date paid, optional stay link; no money on the bill)
+7. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
+8. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+9. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
 
 New schema changes go in a new numbered migration (the demo database is already live); never edit an applied one.
 
@@ -122,9 +123,17 @@ Screens read stays from the `stay_totals` view (stay + guest + money in one row)
 - In-app only: nothing is sent, no phone notifications. Screens: Home "To do today" card, `/tasks`, `/checklists`, and cards on Stay detail.
 - Checklists: one shared list per stage (`before_check_in`, `at_check_out`) in `checklist_items`, edited on either phone (add, rename, reorder, remove). Items are archived, never deleted. Starter items are inserted by 005.
 - Ticks are per stay in `checklist_ticks` (created_by = who ticked, created_at = when). Untick deletes the tick. Tentative/confirmed stays show the before-check-in list; checked-in/completed show the at-check-out list.
+- "Tick all" on a stay's checklist ticks every unticked item in one go (toast with Undo, which removes only those ticks).
 - Checklists warn, never block: Check in / Check out show how many items are unticked and allow going ahead (together with the balance-due warning).
 - Tasks (`tasks`): title, due date (IST), optional for_person (one of the picker names; null = either), optional stay link; ticked done with done_by/done_at; can be edited or deleted. Done tasks show for 30 days.
 - Automatic reminders are computed in `src/lib/tasks.ts`, never stored: arrival prep (confirmed, arriving today or tomorrow, before-check-in list unfinished) and balance to collect (checked_in/completed with balance > 0, the view's figure). No review-request or Form C reminders (owner's choice).
+
+### Expenses (decided Nov 20 2026, migration 006)
+- `expenses`: category (`EXPENSE_CATEGORIES` in `src/lib/labels.ts`: Electricity, Water, Cleaning, Laundry, Repairs, Supplies, Gas, Internet, Other), integer amount > 0, mode, paid_on, optional note (required for Other), optional stay link.
+- Void-only like payments (`guard_money_row`): a mistake is voided with a reason and entered again. Voided rows show struck through and count for nothing.
+- Counted by `paid_on`. Never on a guest's bill, Final or Balance, even when linked to a stay; booked revenue is unchanged.
+- `money.ts`: `expensesBetween`, `expensesByCategory`, `expensesByMonth`, `leftAfterCosts` (= collected − spent − commission paid, all by date paid; may be negative, shown in terracotta).
+- Screens: Ledger → Expenses tab (Spent, Left after costs, Where it went, month groups), an Expenses CSV export, a card on Stay detail when linked, and Insights tiles Spent / Left after costs (shown only without occasion/source filters, since expenses belong to the house).
 
 ### Other defaults (stated to the user, not objected to)
 - Blocked dates: start and end both inclusive. They warn in New booking (not a hard DB block). V1 includes a small "Block dates" form on Stays.

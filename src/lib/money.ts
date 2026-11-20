@@ -1,6 +1,6 @@
 /**
  * ALL money maths for the app lives here, and mirrors the Postgres views
- * `stay_totals` (latest: migrations/004) and `stay_night_revenue` in supabase/migrations.
+ * `stay_totals` (latest: migrations/004; expenses: 006) and `stay_night_revenue` in supabase/migrations.
  * Change one, change the other, and update money.test.ts.
  *
  * Rules (PRD v1.3 "Money rules" + decisions of 19 Nov 2026):
@@ -346,4 +346,50 @@ export function referrerTotals(stays: ReferrerStay[]): ReferrerTotals[] {
     by.set(s.referrer_id, t);
   }
   return [...by.values()].sort((a, b) => b.owed - a.owed || b.bookings - a.bookings);
+}
+
+// ---- Expenses (migration 006; never on a guest's bill) ------------------------
+// Counted by paid_on, like Collected. Voided rows count for nothing.
+//   Spent             = Σ live expenses paid in the range
+//   Left after costs  = Collected − Spent − commission paid, all by date paid
+
+export interface ExpenseLine {
+  amount: number;
+  paid_on: ISODate;
+  voided: boolean;
+  category: string;
+}
+
+/** Money spent between `start` (inclusive) and `end` (exclusive), by the day it was paid. */
+export function expensesBetween(expenses: ExpenseLine[], start: ISODate, end: ISODate): Collected {
+  const inRange = expenses.filter((e) => !e.voided && e.paid_on >= start && e.paid_on < end);
+  inRange.forEach((e) => assertRupees(e.amount));
+  return { amount: sum(inRange.map((e) => e.amount)), count: inRange.length };
+}
+
+/** Spent per category in [start, end), biggest first. */
+export function expensesByCategory(expenses: ExpenseLine[], start: ISODate, end: ISODate): { category: string; amount: number }[] {
+  const by = new Map<string, number>();
+  for (const e of expenses) {
+    if (e.voided || e.paid_on < start || e.paid_on >= end) continue;
+    assertRupees(e.amount);
+    by.set(e.category, (by.get(e.category) ?? 0) + e.amount);
+  }
+  return [...by.entries()].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount || (a.category < b.category ? -1 : 1));
+}
+
+/** Spent per month ('YYYY-MM'), for the given months only. */
+export function expensesByMonth(expenses: ExpenseLine[], months: string[]): Map<string, number> {
+  return new Map(
+    months.map((m) => {
+      const { start, end } = monthRange(m);
+      return [m, expensesBetween(expenses, start, end).amount];
+    }),
+  );
+}
+
+/** What's left of the cash collected once the house's costs and referrers are paid. Can be negative. */
+export function leftAfterCosts(collected: number, spent: number, commissionPaid: number): number {
+  [collected, spent, commissionPaid].forEach(assertRupees);
+  return collected - spent - commissionPaid;
 }

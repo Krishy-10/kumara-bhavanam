@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DEMO ONLY · seed.sql · the PRD's "Demo sample data" (today = 19 Nov 2026)
--- Run on the kb-demo project after the migrations (001–005) and demo_policies.sql.
+-- Run on the kb-demo project after the migrations (001–006) and demo_policies.sql.
 -- It wipes every app table first, so it can be re-run to reset the demo.
 -- NEVER run this on the live project.
 --
@@ -17,12 +17,14 @@
 --   Home: Collected in Nov = 10,000 + 25,000 + 2,000 = 37,000 (3 payments)
 --         To collect (checked in + completed) = 5,000
 --         Floor free 22 to 24 Nov; blocked 28–29 Nov
+--   Expenses in Nov = 2,350 + 400 + 600 + 1,100 + 580 = 5,030 (the 850 is voided)
+--   Left after costs in Nov = 37,000 − 5,030 − 0 commission paid = 31,970
 -- =============================================================================
 
 begin;
 
 -- The shared checklist (checklist_items) is kept; only per-stay ticks are wiped.
-truncate table public.checklist_ticks, public.tasks, public.commission_payouts, public.commissions, public.payments, public.charges, public.id_checks, public.stays,
+truncate table public.expenses, public.checklist_ticks, public.tasks, public.commission_payouts, public.commissions, public.payments, public.charges, public.id_checks, public.stays,
                public.guests, public.referrers, public.blocked_dates, public.message_templates,
                public.bill_counters
   restart identity cascade;
@@ -94,6 +96,19 @@ insert into public.tasks (title, due_on, for_person, stay_id, done_at, done_by, 
   ('Buy a gas cylinder',                     '2026-11-21', 'Krishna Kumar', null, null, null, '2026-11-18 19:00+05:30', 'Padmanabhan'),
   ('Ask Priya for their arrival time',       '2026-11-23', null, 'b0000000-0000-4000-8000-000000000002', null, null, '2026-11-18 19:05+05:30', 'Padmanabhan'),
   ('Pay the electricity bill',               '2026-11-15', 'Krishna Kumar', null, '2026-11-15 11:00+05:30', 'Krishna Kumar', '2026-11-10 08:00+05:30', 'Krishna Kumar');
+
+-- Expenses (never on a guest's bill; counted by the day paid) ---------------
+insert into public.expenses (id, category, note, amount, mode, paid_on, stay_id, created_at, created_by) values
+  ('e6000000-0000-4000-8000-000000000001', 'Cleaning',    'Deep clean after the group', 600, 'cash', '2026-11-02', 'b0000000-0000-4000-8000-000000000004', '2026-11-02 18:00+05:30', 'Padmanabhan'),
+  ('e6000000-0000-4000-8000-000000000002', 'Electricity', 'October bill',              2350, 'upi',  '2026-11-05', null, '2026-11-05 10:00+05:30', 'Krishna Kumar'),
+  ('e6000000-0000-4000-8000-000000000003', 'Water',       'Drinking water cans',        400, 'cash', '2026-11-08', null, '2026-11-08 09:30+05:30', 'Padmanabhan'),
+  ('e6000000-0000-4000-8000-000000000004', 'Supplies',    'Soap, phenyl, tissues',      850, 'cash', '2026-11-10', null, '2026-11-10 17:00+05:30', 'Padmanabhan'),
+  ('e6000000-0000-4000-8000-000000000005', 'Supplies',    'Soap, phenyl, tissues',      580, 'cash', '2026-11-10', null, '2026-11-10 17:05+05:30', 'Padmanabhan'),
+  ('e6000000-0000-4000-8000-000000000006', 'Gas',         'Cylinder refill',           1100, 'cash', '2026-11-12', null, '2026-11-12 11:00+05:30', 'Krishna Kumar');
+-- ₹850 typed instead of ₹580: voided, never deleted (the correct row is above).
+update public.expenses
+   set voided = true, void_reason = 'Wrong amount', voided_by = 'Padmanabhan'
+ where id = 'e6000000-0000-4000-8000-000000000004';
 
 -- Blocked dates (both days included) -----------------------------------------
 insert into public.blocked_dates (start_date, end_date, reason, created_by) values

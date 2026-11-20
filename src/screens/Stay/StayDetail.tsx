@@ -10,7 +10,7 @@ import { Icon } from '@/components/Icon';
 import { ErrorState, Screen, Skeleton, SubHeader } from '@/components/Layout';
 import { StatusPill } from '@/components/StatusPill';
 import { Toast, useToast } from '@/components/Toast';
-import { useIdCheck, useRemoveIdCheck, useSetStatus, useSettings, useStayCharges, useStayPayments, useStays } from '@/data/hooks';
+import { useExpenses, useIdCheck, useRemoveIdCheck, useSetStatus, useSettings, useStayCharges, useStayPayments, useStays } from '@/data/hooks';
 import type { ChargeRow, PaymentRow, StayRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
 import { useToday } from '@/hooks/useToday';
@@ -25,6 +25,7 @@ import { cx } from '@/lib/cx';
 import { ChargeSheet, PaymentSheet, VoidSheet, type VoidTarget } from './MoneySheets';
 import { ChecklistCard, StayTasksCard, useChecklistLeft } from './ChecklistCard';
 import { CommissionCard } from './CommissionCard';
+import { StayExpenses } from '@/screens/Ledger/ExpenseList';
 import { ConfirmMove, IdCheckSheet, StatusSheet } from './StaySheets';
 
 type SheetName = 'payment' | 'charge' | 'status' | 'id' | null;
@@ -79,6 +80,7 @@ function StayBill({ stay }: { stay: StayRow }) {
   const settings = useSettings();
   const setStatus = useSetStatus();
   const checklistLeft = useChecklistLeft(stay.stay_id);
+  const expenses = useExpenses();
   const { toast, show, hide } = useToast();
 
   const [sheet, setSheet] = useState<SheetName>(null);
@@ -248,9 +250,15 @@ function StayBill({ stay }: { stay: StayRow }) {
         removing={removeId.isPending}
       />
 
-      <ChecklistCard stay={stay} onError={(text) => show({ text, tone: 'error' })} />
+      <ChecklistCard
+        stay={stay}
+        onError={(text) => show({ text, tone: 'error' })}
+        onMessage={(text, undo) => show({ text, action: { label: 'Undo', onClick: undo } })}
+      />
 
       {stay.referrer_id && <CommissionCard stay={stay} onVoid={setVoiding} onSaved={(text) => show({ text })} />}
+
+      <StayExpenses expenses={(expenses.data ?? []).filter((e) => e.stay_id === stay.stay_id)} onVoid={setVoiding} />
 
       <div className="mx-4 mt-3 grid grid-cols-2 gap-2.5">
         <Button variant="outline" icon={<Icon name="rupee" size={20} />} onClick={() => setSheet('payment')} disabled={!online}>

@@ -10,7 +10,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Skeleton } from '@/components/Layout';
 import { firstName } from '@/config/users';
-import { useChecklistItems, useSetTaskDone, useTasks, useTicks, useToggleTick } from '@/data/hooks';
+import { useChecklistItems, useSetTaskDone, useTasks, useTickAll, useTicks, useToggleTick } from '@/data/hooks';
 import type { ChecklistStage, StayRow, TaskRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
 import { useToday } from '@/hooks/useToday';
@@ -32,11 +32,20 @@ export function useChecklistLeft(stayId: string): Record<ChecklistStage, number>
   };
 }
 
-export function ChecklistCard({ stay, onError }: { stay: StayRow; onError: (msg: string) => void }) {
+export function ChecklistCard({
+  stay,
+  onError,
+  onMessage,
+}: {
+  stay: StayRow;
+  onError: (msg: string) => void;
+  onMessage: (msg: string, undo: () => void) => void;
+}) {
   const stage = stageFor(stay.status);
   const items = useChecklistItems();
   const ticks = useTicks([stay.stay_id]);
   const toggle = useToggleTick();
+  const tickAll = useTickAll();
   const user = useCurrentUser();
   const online = useOnline();
   const [openWhenDone, setOpenWhenDone] = useState(false);
@@ -112,7 +121,27 @@ export function ChecklistCard({ stay, onError }: { stay: StayRow; onError: (msg:
             {openWhenDone ? 'Hide list' : 'Show list'}
           </button>
         ) : (
-          <span />
+          <button
+            type="button"
+            disabled={!online || tickAll.isPending}
+            onClick={() => {
+              const left = list.filter((it) => !p.ticks.has(it.id)).map((it) => it.id);
+              tickAll.mutate(
+                { stayId: stay.stay_id, itemIds: left, by: user, ticked: true },
+                {
+                  onSuccess: () =>
+                    onMessage(`Ticked ${left.length === 1 ? '1 item' : `all ${left.length} items`}`, () =>
+                      tickAll.mutate({ stayId: stay.stay_id, itemIds: left, by: user, ticked: false }, { onError: (e) => onError(e.message) }),
+                    ),
+                  onError: (e) => onError(e.message),
+                },
+              );
+            }}
+            className="flex min-h-touch items-center gap-1.5 rounded-full border border-peacock px-4 text-[15px] font-semibold text-peacock hover:bg-peacock/5 disabled:opacity-40"
+          >
+            <Icon name="check" size={18} />
+            Tick all
+          </button>
         )}
         <Link to={stage === 'at_check_out' ? '/checklists?stage=at_check_out' : '/checklists'} className="flex min-h-touch items-center text-[15px] font-semibold text-peacock">
           Edit list

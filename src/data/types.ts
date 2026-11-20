@@ -313,3 +313,32 @@ export type TaskEdit = Pick<TaskRow, 'title' | 'due_on' | 'for_person' | 'stay_i
 export interface NewTask extends TaskEdit {
   created_by: string;
 }
+
+// ---- Expenses (migration 006). Never on a guest's bill. Void-only. ----------
+
+/** Money spent on the house, counted by paid_on. */
+export interface ExpenseRow {
+  id: string;
+  category: string;
+  note: string | null;
+  amount: number;
+  mode: PaymentMode;
+  paid_on: ISODate;
+  stay_id: string | null;
+  voided: boolean;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+export interface NewExpense {
+  category: string;
+  note: string | null;
+  amount: number;
+  mode: PaymentMode;
+  paid_on: ISODate;
+  stay_id: string | null;
+  created_by: string;
+}

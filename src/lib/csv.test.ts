@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PaymentRow, StayRow } from '@/data/types';
-import { BOOKING_COLUMNS, bookingsCsv, csvCell, paymentsCsv, toCsv } from './csv';
+import type { ExpenseRow, PaymentRow, StayRow } from '@/data/types';
+import { BOOKING_COLUMNS, bookingsCsv, csvCell, expensesCsv, paymentsCsv, toCsv } from './csv';
 
 describe('csvCell', () => {
   it('quotes commas, quotes and line breaks', () => {
@@ -113,6 +113,40 @@ describe('paymentsCsv', () => {
     expect(lines.slice(1)).toEqual([
       '2026-11-02,KB-2026-0041,Lakshmi Narayanan,Advance,UPI,10000,,No,,Krishna Kumar',
       '2026-11-14,KB-2026-0041,Lakshmi Narayanan,Payment,Cash,25000,,Yes,Entered twice,Krishna Kumar',
+    ]);
+  });
+});
+
+describe('expensesCsv', () => {
+  const exp = (over: Partial<ExpenseRow>): ExpenseRow => ({
+    id: 'e',
+    category: 'Water',
+    note: 'Drinking water cans',
+    amount: 400,
+    mode: 'cash',
+    paid_on: '2026-11-08',
+    stay_id: null,
+    voided: false,
+    void_reason: null,
+    voided_at: null,
+    voided_by: null,
+    created_at: '2026-11-08T04:00:00Z',
+    created_by: 'Padmanabhan',
+    ...over,
+  });
+
+  it('one row per expense by date, with the stay when linked and voided ones marked', () => {
+    const lines = expensesCsv(
+      [exp({}), exp({ id: 'c', category: 'Cleaning', note: 'Deep clean, after the group', amount: 600, paid_on: '2026-11-02', stay_id: 's1', voided: true, void_reason: 'Wrong amount' })],
+      [stay({})],
+    )
+      .replace('﻿', '')
+      .trim()
+      .split('\r\n');
+    expect(lines[0]).toBe('Date paid,For,Note,Mode,Amount,Stay bill no,Stay guest,Voided,Void reason,Entered by');
+    expect(lines.slice(1)).toEqual([
+      '2026-11-02,Cleaning,"Deep clean, after the group",Cash,600,KB-2026-0041,Lakshmi Narayanan,Yes,Wrong amount,Padmanabhan',
+      '2026-11-08,Water,Drinking water cans,Cash,400,,,No,,Padmanabhan',
     ]);
   });
 });

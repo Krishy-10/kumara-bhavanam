@@ -6,8 +6,8 @@ import { useState } from 'react';
 import { Button } from '@/components/Button';
 import { Chips, DateField, Group, LabelledChips, MoneyField, Segmented, TextField } from '@/components/Controls';
 import { Sheet } from '@/components/Sheet';
-import { useAddCharge, useAddPayment, useVoidCharge, useVoidCommission, useVoidCommissionPayout, useVoidPayment } from '@/data/hooks';
-import type { ChargeRow, CommissionPayoutRow, CommissionRow, PaymentMode, PaymentRow, StayRow } from '@/data/types';
+import { useAddCharge, useAddPayment, useVoidCharge, useVoidCommission, useVoidCommissionPayout, useVoidExpense, useVoidPayment } from '@/data/hooks';
+import type { ChargeRow, CommissionPayoutRow, CommissionRow, ExpenseRow, PaymentMode, PaymentRow, StayRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
 import { useToday } from '@/hooks/useToday';
 import { formatDayMonth, formatShortDay } from '@/lib/dates';
@@ -186,13 +186,15 @@ export type VoidTarget =
   | { kind: 'payment'; row: PaymentRow }
   | { kind: 'charge'; row: ChargeRow }
   | { kind: 'commission'; row: CommissionRow }
-  | { kind: 'payout'; row: CommissionPayoutRow };
+  | { kind: 'payout'; row: CommissionPayoutRow }
+  | { kind: 'expense'; row: ExpenseRow };
 
 const VOID_TITLE: Record<VoidTarget['kind'], string> = {
   payment: 'Void this payment?',
   charge: 'Void this line?',
   commission: 'Void this commission?',
   payout: 'Void this payment to the referrer?',
+  expense: 'Void this expense?',
 };
 
 export function VoidSheet({ target, onClose, onSaved }: { target: VoidTarget | null; onClose: () => void; onSaved: (msg: string) => void }) {
@@ -210,7 +212,8 @@ function VoidForm({ target, onClose, onSaved }: { target: VoidTarget; onClose: (
   const voidCharge = useVoidCharge();
   const voidCommission = useVoidCommission();
   const voidPayout = useVoidCommissionPayout();
-  const m = { payment: voidPay, charge: voidCharge, commission: voidCommission, payout: voidPayout }[target.kind];
+  const voidExpense = useVoidExpense();
+  const m = { payment: voidPay, charge: voidCharge, commission: voidCommission, payout: voidPayout, expense: voidExpense }[target.kind];
   const [pick, setPick] = useState<string | null>(null);
   const [other, setOther] = useState('');
   const reason = pick === 'Other' ? other.trim() : pick;
@@ -222,7 +225,9 @@ function VoidForm({ target, onClose, onSaved }: { target: VoidTarget; onClose: (
         ? `${target.row.kind === 'discount' ? 'Discount · ' : ''}${target.row.label}`
         : target.kind === 'commission'
           ? 'Referrer commission'
-          : `Paid to referrer · ${formatDayMonth(target.row.paid_on)} · ${PAYMENT_MODE_LABEL[target.row.mode]}`;
+          : target.kind === 'expense'
+            ? `${target.row.category} · ${formatDayMonth(target.row.paid_on)}`
+            : `Paid to referrer · ${formatDayMonth(target.row.paid_on)} · ${PAYMENT_MODE_LABEL[target.row.mode]}`;
 
   const save = () => {
     if (!reason) return;
@@ -246,7 +251,9 @@ function VoidForm({ target, onClose, onSaved }: { target: VoidTarget; onClose: (
       <p className="text-[15px] text-muted">
         {target.kind === 'payout'
           ? 'Never deleted. Voiding keeps it on the record, struck through, and the commission shows as owed again.'
-          : 'Payments, charges and commission are never deleted. Voiding keeps this row on the record, struck through, and it stops counting. If the amount was wrong, add the correct one afterwards.'}
+          : target.kind === 'expense'
+            ? 'Expenses are never deleted. Voiding keeps this one on the record, struck through, and it stops counting. If the amount was wrong, add the correct one afterwards.'
+            : 'Payments, charges and commission are never deleted. Voiding keeps this row on the record, struck through, and it stops counting. If the amount was wrong, add the correct one afterwards.'}
       </p>
       <Group label="Why">
         <Chips label="Reason" options={VOID_REASONS} value={pick} onChange={setPick} />

@@ -14,11 +14,11 @@
 -- It lives outside supabase/migrations on purpose, so `supabase db push`
 -- never applies it anywhere by accident.
 --
--- The money guards still hold in demo: payments, charges and commissions cannot be deleted
+-- The money guards still hold in demo: payments, charges, commissions and expenses cannot be deleted
 -- or edited (only voided), bill numbers come from the database, and
 -- confirmed / checked-in stays cannot overlap.
 --
--- Run after the migrations (001–005). Safe to re-run: it removes its own
+-- Run after the migrations (001–006). Safe to re-run: it removes its own
 -- demo_anon_* policies first, then creates them all again.
 -- =============================================================================
 
@@ -93,5 +93,9 @@ create policy demo_anon_tasks_select on public.tasks for select to anon using (t
 create policy demo_anon_tasks_insert on public.tasks for insert to anon with check (true);
 create policy demo_anon_tasks_update on public.tasks for update to anon using (true) with check (true);
 create policy demo_anon_tasks_delete on public.tasks for delete to anon using (true);
+
+create policy demo_anon_expenses_select on public.expenses for select to anon using (true);
+create policy demo_anon_expenses_insert on public.expenses for insert to anon with check (true);
+create policy demo_anon_expenses_void   on public.expenses for update to anon using (true) with check (true);
 
 commit;

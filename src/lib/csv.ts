@@ -5,7 +5,7 @@
  * straight from stay_totals or the payments table; nothing is worked out here.
  * Never includes ID details.
  */
-import type { PaymentRow, StayRow } from '@/data/types';
+import type { ExpenseRow, PaymentRow, StayRow } from '@/data/types';
 import { istDate } from './dates';
 import { formatPhone } from './phone';
 import { PAYMENT_MODE_LABEL, PAYMENT_TYPE_LABEL, STATUS_LABEL } from './labels';
@@ -117,5 +117,27 @@ export function paymentsCsv(payments: PaymentRow[], stays: StayRow[]): string {
   return toCsv([...PAYMENT_COLUMNS], rows);
 }
 
+export const EXPENSE_COLUMNS = ['Date paid', 'For', 'Note', 'Mode', 'Amount', 'Stay bill no', 'Stay guest', 'Voided', 'Void reason', 'Entered by'] as const;
+
+/** One row per expense by date paid, voided ones included and marked. Expenses are never on a guest's bill. */
+export function expensesCsv(expenses: ExpenseRow[], stays: StayRow[]): string {
+  const stay = new Map(stays.map((s) => [s.stay_id, s]));
+  const rows = [...expenses]
+    .sort((a, b) => (a.paid_on < b.paid_on ? -1 : a.paid_on > b.paid_on ? 1 : a.created_at < b.created_at ? -1 : 1))
+    .map((e) => [
+      e.paid_on,
+      e.category,
+      e.note,
+      PAYMENT_MODE_LABEL[e.mode],
+      e.amount,
+      e.stay_id ? stay.get(e.stay_id)?.bill_no : null,
+      e.stay_id ? stay.get(e.stay_id)?.guest_name : null,
+      e.voided,
+      e.void_reason,
+      e.created_by,
+    ]);
+  return toCsv([...EXPENSE_COLUMNS], rows);
+}
+
 /** "Kumara Bhavanam bookings 2026-11-21.csv" */
-export const csvFileName = (what: 'bookings' | 'payments', today: string) => `Kumara Bhavanam ${what} ${today}.csv`;
+export const csvFileName = (what: 'bookings' | 'payments' | 'expenses', today: string) => `Kumara Bhavanam ${what} ${today}.csv`;

@@ -10,6 +10,10 @@ import {
   commissionTotals,
   computeStayTotals,
   dueAfterAdvance,
+  expensesBetween,
+  expensesByCategory,
+  expensesByMonth,
+  leftAfterCosts,
   ledgerSummary,
   referrerTotals,
   revenueByMonth,
@@ -316,5 +320,46 @@ describe('ledger', () => {
       { referrerId: 'm', bookings: 2, commission: 1000, paid: 500, owed: 500 },
       { referrerId: 's', bookings: 2, commission: 700, paid: 700, owed: 0 },
     ]);
+  });
+});
+
+describe('expenses', () => {
+  const e = (category: string, amount: number, paid_on: string, voided = false) => ({ category, amount, paid_on, voided });
+  // seed.sql November: the 850 is voided.
+  const nov = [
+    e('Cleaning', 600, '2026-11-02'),
+    e('Electricity', 2350, '2026-11-05'),
+    e('Water', 400, '2026-11-08'),
+    e('Supplies', 850, '2026-11-10', true),
+    e('Supplies', 580, '2026-11-10'),
+    e('Gas', 1100, '2026-11-12'),
+    e('Electricity', 2100, '2026-10-05'),
+    e('Water', 400, '2026-12-01'),
+  ];
+
+  it('counts spent by the day paid, ignoring voided rows (seed: ₹5,030 in Nov)', () => {
+    expect(expensesBetween(nov, '2026-11-01', '2026-12-01')).toEqual({ amount: 5030, count: 5 });
+    expect(expensesBetween(nov, '2026-10-01', '2026-11-01')).toEqual({ amount: 2100, count: 1 });
+  });
+
+  it('groups by category (biggest first) and by month', () => {
+    expect(expensesByCategory(nov, '2026-11-01', '2026-12-01')).toEqual([
+      { category: 'Electricity', amount: 2350 },
+      { category: 'Gas', amount: 1100 },
+      { category: 'Cleaning', amount: 600 },
+      { category: 'Supplies', amount: 580 },
+      { category: 'Water', amount: 400 },
+    ]);
+    expect([...expensesByMonth(nov, ['2026-10', '2026-11', '2026-12'])]).toEqual([
+      ['2026-10', 2100],
+      ['2026-11', 5030],
+      ['2026-12', 400],
+    ]);
+  });
+
+  it('works out what is left after costs (seed Nov: 37,000 − 5,030 − 0 = 31,970), and can go negative', () => {
+    expect(leftAfterCosts(37000, 5030, 0)).toBe(31970);
+    expect(leftAfterCosts(1000, 2500, 500)).toBe(-2000);
+    expect(() => leftAfterCosts(1000, 2.5, 0)).toThrow();
   });
 });

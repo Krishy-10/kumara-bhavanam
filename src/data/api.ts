@@ -15,6 +15,7 @@ import type {
   ChecklistItemRow,
   ChecklistTickRow,
   CommissionPayoutRow,
+  ExpenseRow,
   CommissionRow,
   DocType,
   GuestEdit,
@@ -26,6 +27,7 @@ import type {
   NewCharge,
   NewChecklistItem,
   NewCommission,
+  NewExpense,
   NewCommissionPayout,
   NewPayment,
   NewTask,
@@ -234,8 +236,20 @@ export function addTick(stayId: string, itemId: string, by: string): Promise<voi
   return run(db().from('checklist_ticks').insert({ stay_id: stayId, item_id: itemId, created_by: by }));
 }
 
+/** Ticks several items for one stay in one go ("Tick all"). */
+export function addTicks(stayId: string, itemIds: readonly string[], by: string): Promise<void> {
+  if (itemIds.length === 0) return Promise.resolve();
+  return run(db().from('checklist_ticks').insert(itemIds.map((item_id) => ({ stay_id: stayId, item_id, created_by: by }))));
+}
+
 export function removeTick(stayId: string, itemId: string): Promise<void> {
   return run(db().from('checklist_ticks').delete().eq('stay_id', stayId).eq('item_id', itemId));
+}
+
+/** Undo for "Tick all": removes just the ticks it added. */
+export function removeTicks(stayId: string, itemIds: readonly string[]): Promise<void> {
+  if (itemIds.length === 0) return Promise.resolve();
+  return run(db().from('checklist_ticks').delete().eq('stay_id', stayId).in('item_id', [...itemIds]));
 }
 
 export function addChecklistItem(item: NewChecklistItem): Promise<void> {
@@ -275,4 +289,20 @@ export function setTaskDone(id: string, by: string | null): Promise<void> {
 
 export function deleteTask(id: string): Promise<void> {
   return run(db().from('tasks').delete().eq('id', id));
+}
+
+// ---- Expenses (never on a guest's bill) -------------------------------------
+
+/** Every expense row, voided ones too (a few a month for one floor). */
+export function fetchExpenses(): Promise<ExpenseRow[]> {
+  return unwrap(db().from('expenses').select('*').order('paid_on', { ascending: false }).order('created_at', { ascending: false }));
+}
+
+export function addExpense(e: NewExpense): Promise<void> {
+  return run(db().from('expenses').insert(e));
+}
+
+/** The one change an expense may ever get. */
+export function voidExpense(id: string, reason: string, by: string): Promise<void> {
+  return run(db().from('expenses').update({ voided: true, void_reason: reason, voided_by: by }).eq('id', id));
 }

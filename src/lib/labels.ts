@@ -43,3 +43,7 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
 
 export const BLOCK_REASONS = ['Maintenance', 'Family use', 'Cleaning', 'Other'] as const;
 export const VOID_REASONS = ['Entered twice', 'Wrong amount', 'Wrong stay', 'Other'] as const;
+
+/** Expense categories (DB-checked in migration 006). "Other" needs a note. */
+export const EXPENSE_CATEGORIES = ['Electricity', 'Water', 'Cleaning', 'Laundry', 'Repairs', 'Supplies', 'Gas', 'Internet', 'Other'] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];

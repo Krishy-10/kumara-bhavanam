@@ -275,6 +275,22 @@ insert into public.commission_payouts (commission_id, amount, mode, paid_on, cre
   ('e1000000-0000-4000-8000-000000000001', 500, 'cash', '2025-12-27', '2025-12-27 10:00+05:30', 'Padmanabhan'),
   ('e1000000-0000-4000-8000-000000000003', 700, 'upi', '2026-01-20', '2026-01-20 10:00+05:30', 'Padmanabhan');
 
+-- Expenses, Nov 2025 to Oct 2026, all paid before 1 Nov 2026 (November figures
+-- unchanged). Electricity varies by month, water and cleaning are steady.
+insert into public.expenses (category, note, amount, mode, paid_on, created_at, created_by)
+select 'Electricity', to_char(m - interval '1 month', 'FMMonth') || ' bill',
+       1800 + (extract(month from m)::int * 97) % 900, 'upi', (m + 4)::date,
+       (m + 4)::timestamp at time zone 'Asia/Kolkata' + interval '10 hours', 'Krishna Kumar'
+  from generate_series('2025-11-01'::date, '2026-10-01'::date, interval '1 month') g(m0), lateral (select g.m0::date as m) d
+union all
+select 'Water', 'Drinking water cans', 400, 'cash', (m + 7)::date,
+       (m + 7)::timestamp at time zone 'Asia/Kolkata' + interval '9 hours', 'Padmanabhan'
+  from generate_series('2025-11-01'::date, '2026-10-01'::date, interval '1 month') g(m0), lateral (select g.m0::date as m) d
+union all
+select 'Cleaning', 'Monthly deep clean', 500, 'cash', (m + 19)::date,
+       (m + 19)::timestamp at time zone 'Asia/Kolkata' + interval '17 hours', 'Padmanabhan'
+  from generate_series('2025-11-01'::date, '2026-10-01'::date, interval '1 month') g(m0), lateral (select g.m0::date as m) d;
+
 -- ID checks on completed stays: document type and a sample last 4 only.
 insert into public.id_checks (stay_id, doc_type, last4, checked_by, checked_at, created_by)
 select s.id, 'aadhaar', (1000 + abs(hashtext(s.id::text)) % 9000)::text,

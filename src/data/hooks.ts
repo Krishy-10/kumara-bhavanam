@@ -22,6 +22,7 @@ export const keys = {
   checklistItems: ['checklist', 'items'] as const,
   ticks: (stayIds: readonly string[]) => ['checklist', 'ticks', [...stayIds].sort().join(',')] as const,
   tasks: ['tasks'] as const,
+  expenses: ['expenses'] as const,
 };
 
 // ---- Reads ------------------------------------------------------------------
@@ -208,25 +209,40 @@ export function useTicks(stayIds: readonly string[]) {
  */
 export function useToggleTick() {
   const qc = useQueryClient();
-  const ticksKey = ['checklist', 'ticks'];
   return useMutation({
     mutationFn: (a: { stayId: string; itemId: string; by: string; ticked: boolean }) =>
       a.ticked ? api.addTick(a.stayId, a.itemId, a.by) : api.removeTick(a.stayId, a.itemId),
-    onMutate: async (a) => {
-      await qc.cancelQueries({ queryKey: ticksKey });
-      const before = qc.getQueriesData<ChecklistTickRow[]>({ queryKey: ticksKey });
-      qc.setQueriesData<ChecklistTickRow[]>({ queryKey: ticksKey }, (rows) => {
-        if (!rows) return rows;
-        const rest = rows.filter((t) => !(t.stay_id === a.stayId && t.item_id === a.itemId));
-        return a.ticked
-          ? [...rest, { id: `pending-${a.itemId}`, stay_id: a.stayId, item_id: a.itemId, created_at: new Date().toISOString(), created_by: a.by }]
-          : rest;
-      });
-      return { before };
-    },
+    onMutate: (a) => showTicks(qc, a.stayId, [a.itemId], a.by, a.ticked),
     onError: (_e, _a, ctx) => ctx?.before.forEach(([key, data]) => qc.setQueryData(key, data)),
-    onSettled: () => qc.invalidateQueries({ queryKey: ticksKey }),
+    onSettled: () => qc.invalidateQueries({ queryKey: TICKS }),
   });
+}
+
+/** "Tick all" (every unticked item of a list for one stay, in one save), or its undo. */
+export function useTickAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (a: { stayId: string; itemIds: string[]; by: string; ticked: boolean }) =>
+      a.ticked ? api.addTicks(a.stayId, a.itemIds, a.by) : api.removeTicks(a.stayId, a.itemIds),
+    onMutate: (a) => showTicks(qc, a.stayId, a.itemIds, a.by, a.ticked),
+    onError: (_e, _a, ctx) => ctx?.before.forEach(([key, data]) => qc.setQueryData(key, data)),
+    onSettled: () => qc.invalidateQueries({ queryKey: TICKS }),
+  });
+}
+
+const TICKS = ['checklist', 'ticks'];
+
+/** Shows ticks added or removed at once, in every ticks list; returns what to put back on failure. */
+async function showTicks(qc: ReturnType<typeof useQueryClient>, stayId: string, itemIds: string[], by: string, ticked: boolean) {
+  await qc.cancelQueries({ queryKey: TICKS });
+  const before = qc.getQueriesData<ChecklistTickRow[]>({ queryKey: TICKS });
+  const now = new Date().toISOString();
+  qc.setQueriesData<ChecklistTickRow[]>({ queryKey: TICKS }, (rows) => {
+    if (!rows) return rows;
+    const rest = rows.filter((t) => !(t.stay_id === stayId && itemIds.includes(t.item_id)));
+    return ticked ? [...rest, ...itemIds.map((item_id) => ({ id: `pending-${item_id}`, stay_id: stayId, item_id, created_at: now, created_by: by }))] : rest;
+  });
+  return { before };
 }
 
 const CHECKLIST: QueryKey[] = [keys.checklistItems];
@@ -280,4 +296,18 @@ export function useSetTaskDone() {
     onError: (_e, _a, ctx) => qc.setQueryData(keys.tasks, ctx?.before),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.tasks }),
   });
+}
+
+// ---- Expenses ------------------------------------------------------------------
+
+export function useExpenses() {
+  return useQuery({ queryKey: keys.expenses, queryFn: api.fetchExpenses });
+}
+
+export function useAddExpense() {
+  return useWrite(api.addExpense, [keys.expenses]);
+}
+
+export function useVoidExpense() {
+  return useWrite((a: { id: string; reason: string; by: string }) => api.voidExpense(a.id, a.reason, a.by), [keys.expenses]);
 }

@@ -1,7 +1,8 @@
 /**
  * Ledger: every booking's money in one list (by year), what's received and
  * still due, referrers and the commission owed to them, past stays, and CSV
- * export. All sums come from money.ts over stay_totals rows.
+ * export, and expenses. All sums come from money.ts over stay_totals rows
+ * and saved payment / expense rows.
  */
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
@@ -12,10 +13,10 @@ import { Icon } from '@/components/Icon';
 import { ErrorState, Screen, Skeleton } from '@/components/Layout';
 import { Sheet } from '@/components/Sheet';
 import { Toast, useToast } from '@/components/Toast';
-import { useAllPayments, useReferrers, useStays } from '@/data/hooks';
-import type { PaymentRow, ReferrerRow, StayRow } from '@/data/types';
+import { useAllPayments, useCommissionPayouts, useExpenses, useReferrers, useStays } from '@/data/hooks';
+import type { CommissionPayoutRow, ExpenseRow, PaymentRow, ReferrerRow, StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
-import { bookingsCsv, csvFileName, paymentsCsv } from '@/lib/csv';
+import { bookingsCsv, csvFileName, expensesCsv, paymentsCsv } from '@/lib/csv';
 import { formatDayMonth, formatMonthYear, monthKey } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { plural } from '@/lib/labels';
@@ -24,24 +25,27 @@ import { formatPhone } from '@/lib/phone';
 import { downloadFile, shareFile } from '@/lib/share';
 import { cx } from '@/lib/cx';
 import { PayoutSheet, type PayoutItem } from '@/screens/Stay/CommissionCard';
+import { ExpenseList, yearRange } from './ExpenseList';
 
-type Tab = 'bookings' | 'referrers';
+type Tab = 'bookings' | 'referrers' | 'expenses';
 const ALL = 'all';
 
 export function Ledger() {
   const stays = useStays();
   const payments = useAllPayments();
   const referrers = useReferrers();
-  const error = stays.error ?? payments.error ?? referrers.error;
+  const expenses = useExpenses();
+  const payouts = useCommissionPayouts();
+  const error = stays.error ?? payments.error ?? referrers.error ?? expenses.error ?? payouts.error;
 
   return (
     <Screen>
       {error ? (
         <>
           <LedgerHeader />
-          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch(), referrers.refetch()])} />
+          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch(), referrers.refetch(), expenses.refetch(), payouts.refetch()])} />
         </>
-      ) : !stays.data || !payments.data || !referrers.data ? (
+      ) : !stays.data || !payments.data || !referrers.data || !expenses.data || !payouts.data ? (
         <>
           <LedgerHeader />
           <div className="flex flex-col gap-3 px-4" aria-busy="true" aria-label="Loading">
@@ -51,7 +55,7 @@ export function Ledger() {
           </div>
         </>
       ) : (
-        <LedgerBody stays={stays.data} payments={payments.data} referrers={referrers.data} />
+        <LedgerBody stays={stays.data} payments={payments.data} referrers={referrers.data} expenses={expenses.data} payouts={payouts.data} />
       )}
     </Screen>
   );
@@ -74,18 +78,34 @@ function LedgerHeader({ onExport }: { onExport?: () => void }) {
   );
 }
 
-function LedgerBody({ stays, payments, referrers }: { stays: StayRow[]; payments: PaymentRow[]; referrers: ReferrerRow[] }) {
+function LedgerBody({
+  stays,
+  payments,
+  referrers,
+  expenses,
+  payouts,
+}: {
+  stays: StayRow[];
+  payments: PaymentRow[];
+  referrers: ReferrerRow[];
+  expenses: ExpenseRow[];
+  payouts: CommissionPayoutRow[];
+}) {
   const today = useToday();
   const [params, setParams] = useSearchParams();
   const [exporting, setExporting] = useState(false);
   const [query, setQuery] = useState('');
   const { toast, show, hide } = useToast();
 
-  const years = useMemo(() => [...new Set(stays.map((s) => s.check_in.slice(0, 4)))].sort().reverse(), [stays]);
+  const years = useMemo(
+    () => [...new Set([...stays.map((s) => s.check_in.slice(0, 4)), ...expenses.map((e) => e.paid_on.slice(0, 4))])].sort().reverse(),
+    [stays, expenses],
+  );
   const thisYear = today.slice(0, 4);
   const yearParam = params.get('y');
   const year = yearParam === ALL || (yearParam && years.includes(yearParam)) ? yearParam : years.includes(thisYear) ? thisYear : (years[0] ?? ALL);
-  const tab: Tab = params.get('tab') === 'referrers' ? 'referrers' : 'bookings';
+  const tabParam = params.get('tab');
+  const tab: Tab = tabParam === 'referrers' || tabParam === 'expenses' ? tabParam : 'bookings';
   const setParam = (k: string, v: string | null) => {
     const next = new URLSearchParams(params);
     if (v === null) next.delete(k);
@@ -143,18 +163,31 @@ function LedgerBody({ stays, payments, referrers }: { stays: StayRow[]; payments
           options={[
             { value: 'bookings', label: 'Bookings' },
             { value: 'referrers', label: 'Referrers' },
+            { value: 'expenses', label: 'Expenses' },
           ]}
         />
       </div>
 
       {tab === 'bookings' ? (
         <BookingList stays={inYear} query={query} onQuery={setQuery} year={thisYear} />
-      ) : (
+      ) : tab === 'referrers' ? (
         <ReferrerList stays={stays} referrers={referrers} onPaid={(text) => show({ text })} />
+      ) : (
+        <ExpenseList expenses={expenses} payments={payments} payouts={payouts} stays={stays} year={year} onSaved={(text) => show({ text })} />
       )}
       <div className="h-4" />
 
-      <ExportSheet open={exporting} onClose={() => setExporting(false)} stays={inYear} payments={payments} year={year} today={today} onDone={(text, tone) => show({ text, tone })} />
+      <ExportSheet
+        open={exporting}
+        onClose={() => setExporting(false)}
+        stays={inYear}
+        allStays={stays}
+        payments={payments}
+        expenses={expenses}
+        year={year}
+        today={today}
+        onDone={(text, tone) => show({ text, tone })}
+      />
       <Toast toast={toast} onHide={hide} />
     </>
   );
@@ -415,7 +448,9 @@ function ExportSheet({
   open,
   onClose,
   stays,
+  allStays,
   payments,
+  expenses,
   year,
   today,
   onDone,
@@ -423,7 +458,9 @@ function ExportSheet({
   open: boolean;
   onClose: () => void;
   stays: StayRow[];
+  allStays: StayRow[];
   payments: PaymentRow[];
+  expenses: ExpenseRow[];
   year: string;
   today: string;
   onDone: (msg: string, tone?: 'error') => void;
@@ -431,9 +468,11 @@ function ExportSheet({
   const ids = new Set(stays.map((s) => s.stay_id));
   const pays = payments.filter((p) => ids.has(p.stay_id));
   const scope = year === ALL ? 'all years' : year;
+  const { start, end } = yearRange(year);
+  const exps = expenses.filter((e) => e.paid_on >= start && e.paid_on < end);
 
-  const send = async (what: 'bookings' | 'payments') => {
-    const text = what === 'bookings' ? bookingsCsv(stays) : paymentsCsv(pays, stays);
+  const send = async (what: 'bookings' | 'payments' | 'expenses') => {
+    const text = what === 'bookings' ? bookingsCsv(stays) : what === 'payments' ? paymentsCsv(pays, stays) : expensesCsv(exps, allStays);
     const name = csvFileName(what, year === ALL ? today : `${year} (${today})`);
     const file = new File([text], name, { type: 'text/csv' });
     const r = await shareFile(file, name);
@@ -457,7 +496,12 @@ function ExportSheet({
         <Button size="lg" block variant="outline" icon={<Icon name="share" size={20} />} onClick={() => void send('payments')} disabled={pays.length === 0}>
           Payments ({plural(pays.length, 'row')})
         </Button>
-        <p className="text-[13px] text-muted">Payments lists every payment for these bookings, voided ones included and marked.</p>
+        <Button size="lg" block variant="outline" icon={<Icon name="share" size={20} />} onClick={() => void send('expenses')} disabled={exps.length === 0}>
+          Expenses ({plural(exps.length, 'row')})
+        </Button>
+        <p className="text-[13px] text-muted">
+          Payments lists every payment for these bookings; expenses are by the day paid. Voided rows are included and marked.
+        </p>
       </div>
     </Sheet>
   );

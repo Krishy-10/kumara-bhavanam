@@ -1,19 +1,20 @@
 /**
  * Insights: booked revenue (split night by night into months), cash collected
- * (by payment date), occupancy, and where bookings come from. One filter row
+ * (by payment date), what the house spent and what's left after costs,
+ * occupancy, and where bookings come from. One filter row
  * scopes everything below it. Every rupee comes from money.ts.
  */
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { ErrorState, Screen, Skeleton } from '@/components/Layout';
-import { useAllPayments, useCommissionPayouts, useStays } from '@/data/hooks';
-import type { CommissionPayoutRow, PaymentRow, StayRow } from '@/data/types';
+import { useAllPayments, useCommissionPayouts, useExpenses, useStays } from '@/data/hooks';
+import type { CommissionPayoutRow, ExpenseRow, PaymentRow, StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
 import { arrivalsBy, occupancy, PERIOD_LABEL, periodMonths, ranked, spanOf, type Period } from '@/lib/analytics';
 import { formatMonthYear, monthRange } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { OCCASIONS, SOURCES, plural } from '@/lib/labels';
-import { bookedRevenueBy, bookedRevenueByMonth, collectedBetween, collectedByMonth, commissionPaidBetween, sumRupees } from '@/lib/money';
+import { bookedRevenueBy, bookedRevenueByMonth, collectedBetween, collectedByMonth, commissionPaidBetween, expensesBetween, leftAfterCosts, sumRupees } from '@/lib/money';
 import { cx } from '@/lib/cx';
 import { MoneyByMonthChart, OccupancyChart, RankedBars, SERIES, type MonthRow } from './Charts';
 
@@ -25,7 +26,8 @@ export function Insights() {
   const stays = useStays();
   const payments = useAllPayments();
   const payouts = useCommissionPayouts();
-  const error = stays.error ?? payments.error ?? payouts.error;
+  const expenses = useExpenses();
+  const error = stays.error ?? payments.error ?? payouts.error ?? expenses.error;
 
   return (
     <Screen>
@@ -34,22 +36,32 @@ export function Insights() {
       </header>
       {error ? (
         <div className="mt-4">
-          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch(), payouts.refetch()])} />
+          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch(), payouts.refetch(), expenses.refetch()])} />
         </div>
-      ) : !stays.data || !payments.data || !payouts.data ? (
+      ) : !stays.data || !payments.data || !payouts.data || !expenses.data ? (
         <div className="mt-4 flex flex-col gap-3 px-4" aria-busy="true" aria-label="Loading">
           <Skeleton className="h-12" />
           <Skeleton className="h-28" />
           <Skeleton className="h-[260px]" />
         </div>
       ) : (
-        <Dashboard stays={stays.data} payments={payments.data} payouts={payouts.data} />
+        <Dashboard stays={stays.data} payments={payments.data} payouts={payouts.data} expenses={expenses.data} />
       )}
     </Screen>
   );
 }
 
-function Dashboard({ stays, payments, payouts }: { stays: StayRow[]; payments: PaymentRow[]; payouts: CommissionPayoutRow[] }) {
+function Dashboard({
+  stays,
+  payments,
+  payouts,
+  expenses,
+}: {
+  stays: StayRow[];
+  payments: PaymentRow[];
+  payouts: CommissionPayoutRow[];
+  expenses: ExpenseRow[];
+}) {
   const today = useToday();
   const [params, setParams] = useSearchParams();
   const period = (PERIODS as string[]).includes(params.get('p') ?? '') ? (params.get('p') as Period) : '12m';
@@ -100,12 +112,19 @@ function Dashboard({ stays, payments, payouts }: { stays: StayRow[]; payments: P
       };
     });
 
+    const collected = collectedBetween(pays, start, end);
+    const commissionPaid = commissionPaidBetween(outs, start, end);
+    const spent = expensesBetween(expenses, start, end);
+
     return {
       months,
       rows,
+      filtered,
       booked: sumRupees(rows.map((r) => r.booked)),
-      collected: collectedBetween(pays, start, end),
-      commissionPaid: commissionPaidBetween(outs, start, end),
+      collected,
+      commissionPaid,
+      spent,
+      left: leftAfterCosts(collected.amount, spent.amount, commissionPaid.amount),
       commissionOwed: sumRupees(picked.map((s) => s.commission_owed)),
       occ: occupancy(picked, start, end),
       arrivals: arrivalsBy(picked, () => 'all', start, end).get('all') ?? 0,
@@ -114,7 +133,7 @@ function Dashboard({ stays, payments, payouts }: { stays: StayRow[]; payments: P
       bySource: ranked(arrivalsBy(picked, (s) => (s.sources.length > 0 ? s.sources : NOT_TAGGED), start, end)),
       future: end > today && period !== 'month',
     };
-  }, [stays, payments, payouts, period, occasion, source, today]);
+  }, [stays, payments, payouts, expenses, period, occasion, source, today]);
 
   const multi = view.months.length > 1;
 
@@ -164,6 +183,17 @@ function Dashboard({ stays, payments, payouts }: { stays: StayRow[]; payments: P
           <Tile label="Cancelled" value={String(view.cancelled)} sub="not counted in booked" />
           <Tile label="Commission paid" value={formatRupees(view.commissionPaid.amount)} sub="to referrers, by date paid" />
           <Tile label="Commission owed" value={formatRupees(view.commissionOwed)} sub="to referrers, as of today" />
+          {/* Expenses belong to the house, not to an occasion or source, so they show only without those filters. */}
+          <Tile
+            label="Spent"
+            value={view.filtered ? '—' : formatRupees(view.spent.amount)}
+            sub={view.filtered ? 'not split by occasion or source' : `${plural(view.spent.count, 'expense')}, by date paid`}
+          />
+          <Tile
+            label="Left after costs"
+            value={view.filtered ? '—' : formatRupees(view.left)}
+            sub={view.filtered ? 'clear the filters to see it' : 'collected − spent − commission paid'}
+          />
         </dl>
 
         {multi ? (
