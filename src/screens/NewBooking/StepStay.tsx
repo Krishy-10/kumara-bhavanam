@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useId, useState } from 'react';
-import { Chips, Group, MultiChips, Segmented, Stepper, TextField } from '@/components/Controls';
+import { Chips, Group, MultiChips, Segmented, Stepper, TextField, TimeField } from '@/components/Controls';
 import { Icon } from '@/components/Icon';
 import type { BlockedRow, StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
@@ -57,6 +57,14 @@ export function StepStay({
       <Group label="Nights" hint={`Check-out ${formatShortDay(checkOut)}`}>
         <Stepper label="Nights" value={draft.nights} min={1} max={MAX_NIGHTS} onChange={(n) => set({ nights: n })} />
       </Group>
+
+      <div>
+        <div className="grid grid-cols-2 gap-3">
+          <TimeField label="Arrival time" value={draft.checkInTime} onChange={(v) => set({ checkInTime: v })} />
+          <TimeField label="Leaving time" value={draft.checkOutTime} onChange={(v) => set({ checkOutTime: v })} />
+        </div>
+        <p className="mt-1.5 text-[14px] text-muted">Optional. Times never change the price.</p>
+      </div>
 
       <StayDatesSheet open={picking} onClose={() => setPicking(false)} checkIn={draft.checkIn} nights={draft.nights} onPick={(p) => set(p)} />
 

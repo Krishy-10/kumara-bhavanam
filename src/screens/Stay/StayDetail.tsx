@@ -15,7 +15,7 @@ import type { ChargeRow, PaymentRow, StayRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
 import { useToday } from '@/hooks/useToday';
 import { accommodationLabel, billFileName, billModel, billText, paymentLabel } from '@/lib/bill';
-import { formatDayMonth, formatRange, istDate } from '@/lib/dates';
+import { formatDayMonth, formatRange, formatShortDay, formatTime, istDate } from '@/lib/dates';
 import { formatRupees, formatSigned } from '@/lib/format';
 import { DOC_TYPE_LABEL, plural } from '@/lib/labels';
 import { balanceState, type StayStatus } from '@/lib/money';
@@ -26,9 +26,9 @@ import { ChargeSheet, PaymentSheet, VoidSheet, type VoidTarget } from './MoneySh
 import { ChecklistCard, StayTasksCard, useChecklistLeft } from './ChecklistCard';
 import { CommissionCard } from './CommissionCard';
 import { StayExpenses } from '@/screens/Ledger/ExpenseList';
-import { ConfirmMove, IdCheckSheet, StatusSheet } from './StaySheets';
+import { ConfirmMove, IdCheckSheet, StatusSheet, TimesSheet } from './StaySheets';
 
-type SheetName = 'payment' | 'charge' | 'status' | 'id' | null;
+type SheetName = 'payment' | 'charge' | 'status' | 'id' | 'times' | null;
 
 export function StayDetail() {
   const { stayId = '' } = useParams();
@@ -241,6 +241,8 @@ function StayBill({ stay }: { stay: StayRow }) {
         <BalanceBox stay={stay} />
       </motion.section>
 
+      <TimesCard stay={stay} onEdit={() => setSheet('times')} />
+
       <IdCheckCard
         stayId={stay.stay_id}
         check={idCheck.data ?? null}
@@ -310,6 +312,7 @@ function StayBill({ stay }: { stay: StayRow }) {
       <ChargeSheet stay={stay} open={sheet === 'charge'} onClose={() => setSheet(null)} onSaved={(text) => show({ text })} />
       <VoidSheet target={voiding} onClose={() => setVoiding(null)} onSaved={(text) => show({ text })} />
       <StatusSheet stay={stay} open={sheet === 'status'} onClose={() => setSheet(null)} onPick={move} />
+      <TimesSheet stay={stay} open={sheet === 'times'} onClose={() => setSheet(null)} onSaved={(text) => show({ text })} />
       <IdCheckSheet stayId={stay.stay_id} open={sheet === 'id'} onClose={() => setSheet(null)} onSaved={() => show({ text: 'ID checked' })} />
       <ConfirmMove
         stay={stay}
@@ -512,6 +515,44 @@ function IdCheckCard({
         Undo
       </button>
     </div>
+  );
+}
+
+/** Expected arrival and leaving times; tap to set or change them. */
+function TimesCard({ stay, onEdit }: { stay: StayRow; onEdit: () => void }) {
+  const arrive = formatTime(stay.check_in_time);
+  const leave = formatTime(stay.check_out_time);
+  const none = !arrive && !leave;
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className={cx(
+        'mx-4 mt-3 flex min-h-[64px] w-[calc(100%-2rem)] items-center gap-3 rounded-2xl bg-white px-3.5 py-2 text-left hover:bg-haldi/60',
+        none && 'border border-dashed border-line-strong',
+      )}
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-haldi text-peacock">
+        <Icon name="clock" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        {none ? (
+          <>
+            <span className="text-[15px] font-semibold">Arrival and leaving times</span>
+            <span className="text-[13px] text-muted">Not set · tap to add</span>
+          </>
+        ) : (
+          <>
+            <span className="text-[15px] font-semibold">{arrive ? <>Arrives <span className="num">{arrive}</span></> : 'Arrival time not set'}</span>
+            <span className="text-[13px] text-muted">
+              {formatShortDay(stay.check_in)} · leaves {formatShortDay(stay.check_out)}
+              {leave && <span className="num">, {leave}</span>}
+            </span>
+          </>
+        )}
+      </span>
+      <Icon name="edit" size={18} className="shrink-0 text-muted" />
+    </button>
   );
 }
 

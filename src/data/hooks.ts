@@ -114,6 +114,10 @@ export function useSetStatus() {
   return useWrite((a: { stayId: string; status: Parameters<typeof api.setStayStatus>[1] }) => api.setStayStatus(a.stayId, a.status), [keys.stays]);
 }
 
+export function useSetStayTimes() {
+  return useWrite((a: { stayId: string; checkInTime: string | null; checkOutTime: string | null }) => api.setStayTimes(a.stayId, a.checkInTime, a.checkOutTime), [keys.stays]);
+}
+
 export function useAddPayment() {
   return useWrite(api.addPayment, MONEY);
 }

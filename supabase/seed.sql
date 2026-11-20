@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DEMO ONLY · seed.sql · the PRD's "Demo sample data" (today = 19 Nov 2026)
--- Run on the kb-demo project after the migrations (001–006) and demo_policies.sql.
+-- Run on the kb-demo project after the migrations (001–007) and demo_policies.sql.
 -- It wipes every app table first, so it can be re-run to reset the demo.
 -- NEVER run this on the live project.
 --
@@ -54,6 +54,10 @@ insert into public.stays
    '2026-11-24', '2026-11-26', 6, 'confirmed',  'per_night', 5000, null,  'Temple visit', array['Returning guest'], '2026-11-10 16:45+05:30', 'Padmanabhan'),
   ('b0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000003', 'KB-2026-0044',
    '2026-12-04', '2026-12-06', 4, 'tentative',  'per_night', 5000, null,  'Wedding',       array['Phone'],    '2026-11-17 18:35+05:30', 'Padmanabhan');
+
+-- Expected times (007): Lakshmi leaves at 11 am; Priya's group comes off the 6:30 am train.
+update public.stays set check_out_time = '11:00' where id = 'b0000000-0000-4000-8000-000000000001';
+update public.stays set check_in_time = '06:30', check_out_time = '16:00' where id = 'b0000000-0000-4000-8000-000000000002';
 
 -- Charges and discounts ------------------------------------------------------
 insert into public.charges (stay_id, kind, label, amount, created_at, created_by) values

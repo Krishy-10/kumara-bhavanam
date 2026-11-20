@@ -84,6 +84,12 @@ const PATHS = {
   tasks: <path d="M4 6.5l1.8 1.8L9 5M4 13.5l1.8 1.8L9 12M12 7h8M12 14h8M12 19.5h8M4.5 19.5h.01" />,
   up: <path d="M6 15l6-6 6 6" />,
   down: <path d="M6 9l6 6 6-6" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

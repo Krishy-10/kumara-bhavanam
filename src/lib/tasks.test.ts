@@ -37,6 +37,8 @@ const stay = (over: Partial<StayRow>): StayRow => ({
   commission: 0,
   commission_paid: 0,
   commission_owed: 0,
+  check_in_time: null,
+  check_out_time: null,
   ...over,
 });
 

@@ -109,3 +109,20 @@ describe('pickStayDay', () => {
     expect(pickStayDay(a, '2027-09-01')).toEqual({ checkIn: '2027-05-20', checkOut: '2027-07-19' });
   });
 });
+
+describe('expected times', () => {
+  it('start empty and go to the booking only when set', () => {
+    const d = newDraft(today);
+    expect(d.checkInTime).toBe('');
+    expect(toPayload({ ...d, name: 'A', phone: '9843100301', nightlyRate: 5000 }, 'K').stay).toMatchObject({ check_in_time: null, check_out_time: null });
+    expect(toPayload({ ...d, name: 'A', phone: '9843100301', nightlyRate: 5000, checkInTime: '06:30', checkOutTime: '16:00' }, 'K').stay).toMatchObject({
+      check_in_time: '06:30',
+      check_out_time: '16:00',
+    });
+  });
+
+  it('a saved draft keeps good times and drops bad ones', () => {
+    expect(restoreDraft({ checkInTime: '06:30', checkOutTime: '25:99' }, today)).toMatchObject({ checkInTime: '06:30', checkOutTime: '' });
+    expect(restoreDraft({}, today).checkOutTime).toBe('');
+  });
+});

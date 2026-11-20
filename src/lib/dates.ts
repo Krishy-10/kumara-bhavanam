@@ -102,6 +102,23 @@ export function formatRange(start: ISODate, end: ISODate): string {
   return `${formatDayMonth(start)} to ${formatDayMonth(end)}`;
 }
 
+/** True for a wall-clock time "HH:MM" (as an <input type="time"> gives it). */
+export const isTime = (t: unknown): t is string => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+
+/** A database time ("06:30:00") as "HH:MM" for a time input; '' for none. */
+export const timeInput = (t: string | null | undefined): string => (t ? t.slice(0, 5) : '');
+
+/** "6:30 am", "12 noon", "4 pm"; null for no time. Expected times are IST wall clock. */
+export function formatTime(t: string | null | undefined): string | null {
+  if (!t || !/^\d{2}:\d{2}/.test(t)) return null;
+  const h = Number(t.slice(0, 2));
+  const m = t.slice(3, 5);
+  if (h === 12 && m === '00') return '12 noon';
+  if (h === 0 && m === '00') return '12 midnight';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${m === '00' ? '' : `:${m}`} ${h < 12 ? 'am' : 'pm'}`;
+}
+
 /** The IST calendar date of a database timestamp (created_at, checked_at). */
 export function istDate(timestamp: string): ISODate {
   return todayIST(new Date(timestamp));

@@ -35,6 +35,8 @@ const stay: StayRow = {
   commission: 500,
   commission_paid: 0,
   commission_owed: 500,
+  check_in_time: null,
+  check_out_time: null,
 };
 
 const charge = (kind: 'charge' | 'discount', label: string, amount: number, voided = false): ChargeRow => ({

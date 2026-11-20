@@ -368,6 +368,31 @@ export function DateField({
   );
 }
 
+/** A wall-clock time ("HH:MM"), optional: emptying the field clears it. */
+export function TimeField({
+  label,
+  value,
+  onChange,
+  hint,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: ReactNode;
+  className?: string;
+}) {
+  const id = useId();
+  return (
+    <div className={className}>
+      <FieldLabel htmlFor={id} hint={hint}>
+        {label}
+      </FieldLabel>
+      <input id={id} type="time" value={value} onChange={(e) => onChange(e.target.value)} className={cx(inputBase, 'num text-[18px] font-semibold')} />
+    </div>
+  );
+}
+
 /** Multi-line text, same look as TextField. */
 export function TextArea({
   label,

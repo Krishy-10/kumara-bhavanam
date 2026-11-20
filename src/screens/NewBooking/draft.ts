@@ -1,6 +1,6 @@
 /** New booking: the draft kept across the three steps, its checks and its payload. */
 import type { BookingPayload, Language, PaymentMode, StayRow } from '@/data/types';
-import { addDays, isISODate, type ISODate } from '@/lib/dates';
+import { addDays, isISODate, isTime, type ISODate } from '@/lib/dates';
 import { SOURCES } from '@/lib/labels';
 import { normalizePhone } from '@/lib/phone';
 import { computeStayTotals, type ChargeKind, type PricingMode, type StayPricing, type StayStatus, type StayTotals } from '@/lib/money';
@@ -27,6 +27,9 @@ export interface Draft {
 
   checkIn: ISODate;
   nights: number;
+  /** Expected arrival / leaving time, "HH:MM"; '' = not known. Information only. */
+  checkInTime: string;
+  checkOutTime: string;
   guestsCount: number;
   status: BookingStatus;
   occasion: string | null;
@@ -63,6 +66,8 @@ export function newDraft(today: ISODate): Draft {
     filledFrom: null,
     checkIn: today,
     nights: 1,
+    checkInTime: '',
+    checkOutTime: '',
     guestsCount: 2,
     status: 'confirmed',
     occasion: null,
@@ -160,6 +165,8 @@ export function restoreDraft(raw: unknown, today: ISODate): Draft {
     filledFrom: strOrNull('filledFrom'),
     checkIn: isISODate(r.checkIn) ? r.checkIn : d.checkIn,
     nights: isInt(r.nights, 1, 60) ? r.nights : d.nights,
+    checkInTime: isTime(r.checkInTime) ? r.checkInTime : '',
+    checkOutTime: isTime(r.checkOutTime) ? r.checkOutTime : '',
     guestsCount: isInt(r.guestsCount, 1, 20) ? r.guestsCount : d.guestsCount,
     status: STATUSES.includes(r.status as BookingStatus) ? (r.status as BookingStatus) : d.status,
     occasion: strOrNull('occasion'),
@@ -243,6 +250,8 @@ export function toPayload(d: Draft, createdBy: string): BookingPayload {
       occasion: d.occasion,
       sources: d.sources,
       notes: d.notes.trim() || null,
+      check_in_time: isTime(d.checkInTime) ? d.checkInTime : null,
+      check_out_time: isTime(d.checkOutTime) ? d.checkOutTime : null,
     },
     referrer: referrerPayload(d),
     charges: d.lines.map(({ kind, label, amount }) => ({ kind, label, amount })),

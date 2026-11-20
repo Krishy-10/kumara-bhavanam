@@ -34,9 +34,10 @@ Database (see SETUP.md), run in the Supabase SQL editor in this order:
 4. `supabase/migrations/004_commission_past_stays.sql` (commissions + commission_payouts, stay_totals commission columns; create_booking v3 for past stays)
 5. `supabase/migrations/005_tasks_checklists.sql` (checklist_items with starter items, checklist_ticks, tasks; no money)
 6. `supabase/migrations/006_expenses.sql` (expenses: void-only, by date paid, optional stay link; no money on the bill)
-7. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
-8. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-9. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
+7. `supabase/migrations/007_stay_times.sql` (expected check-in / check-out times on a stay; stay_totals gains them; create_booking v4)
+8. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
+9. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+10. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
 
 New schema changes go in a new numbered migration (the demo database is already live); never edit an applied one.
 
@@ -135,11 +136,16 @@ Screens read stays from the `stay_totals` view (stay + guest + money in one row)
 - `money.ts`: `expensesBetween`, `expensesByCategory`, `expensesByMonth`, `leftAfterCosts` (= collected − spent − commission paid, all by date paid; may be negative, shown in terracotta).
 - Screens: Ledger → Expenses tab (Spent, Left after costs, Where it went, month groups), an Expenses CSV export, a card on Stay detail when linked, and Insights tiles Spent / Left after costs (shown only without occasion/source filters, since expenses belong to the house).
 
+### Check-in and check-out times (decided Nov 20 2026, migration 007)
+- `stays.check_in_time` / `check_out_time`: optional `time` (IST wall clock), the EXPECTED arrival and leaving time. Typed in New booking (step 2) or set on Stay detail (Times card → sheet); a blank field clears it.
+- Information only: never changes nights, overlaps, money or the bill. An early check-in / late check-out fee is added by hand with Add charge.
+- Shown on Home (next arrival card, leaving time on the current stay card), Stay detail, and the bookings CSV. Helpers `formatTime`, `isTime`, `timeInput` in `src/lib/dates.ts`.
+
 ### Other defaults (stated to the user, not objected to)
 - Blocked dates: start and end both inclusive. They warn in New booking (not a hard DB block). V1 includes a small "Block dates" form on Stays.
 - Stay detail has a status menu: Enquiry → Tentative → Confirmed, and Cancel. Check out warns if a balance is due but allows it.
 - Bill counter resets each year (KB-2027-0001 in January), year taken from the booking's creation date in IST.
-- Demo hosting sits behind Cloudflare Access (email one-time code) because demo RLS lets `anon` read and write.
+- Demo hosting was meant to sit behind Cloudflare Access (email one-time code) because demo RLS lets `anon` read and write. As of Nov 20 2026 it is NOT set up: kumara-bhavanam.pages.dev is open to anyone with the link, so the demo must hold made-up data only. Live mode's Google sign-in + `allowed_users` is the real protection.
 - `seed.sql` holds exactly the 4 PRD stays; `seed_history.sql` (optional) adds Dec 2025 – Oct 2026 sample history for analytics without changing November figures.
 
 ### Approved libraries

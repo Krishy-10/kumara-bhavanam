@@ -36,6 +36,7 @@ await db.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await db.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 await db.exec(read('supabase/migrations/005_tasks_checklists.sql'));
 await db.exec(read('supabase/migrations/006_expenses.sql'));
+await db.exec(read('supabase/migrations/007_stay_times.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -354,6 +355,24 @@ await db.exec('reset role;');
 const lk = await one(`select final, balance from stay_totals where stay_id = 'b0000000-0000-4000-8000-000000000001'`);
 ok(lk.final === 40000 && lk.balance === 5000, 'an expense linked to a stay never touches its bill');
 
+// --- Expected check-in / check-out times (007) ------------------------------
+const timed = (await asAnon(`select public.create_booking($1::jsonb) as r`, [booking({
+  guest: { phone: '+910000000777', name: 'Timed Guest' },
+  stay: { check_in: '2027-06-10', check_out: '2027-06-12', status: 'confirmed', pricing_mode: 'per_night', nightly_rate: 5000, check_in_time: '06:30', check_out_time: '16:00' },
+  charges: [], advance: null })])).r;
+const tt = await one(`select to_char(check_in_time, 'HH24:MI') i, to_char(check_out_time, 'HH24:MI') o, final, nights from stay_totals where stay_id = '${timed.stay_id}'`);
+ok(tt.i === '06:30' && tt.o === '16:00', `create_booking keeps the expected times: in ${tt.i}, out ${tt.o}`);
+ok(tt.final === 10000 && tt.nights === 2, 'times never change nights or money');
+const untimed = (await asAnon(`select public.create_booking($1::jsonb) as r`, [booking({
+  guest: { phone: '+910000000776', name: 'Untimed Guest' },
+  stay: { check_in: '2027-07-10', check_out: '2027-07-11', status: 'confirmed', pricing_mode: 'per_night', nightly_rate: 5000, check_in_time: '' },
+  charges: [], advance: null })])).r;
+ok((await one(`select check_in_time, check_out_time from stay_totals where stay_id = '${untimed.stay_id}'`)).check_in_time === null, 'a blank time is saved as no time');
+await asAnonExec(`update stays set check_in_time = '14:15', check_out_time = null where id = '${timed.stay_id}'`);
+const tu = await one(`select to_char(check_in_time, 'HH24:MI') i, check_out_time o from stay_totals where stay_id = '${timed.stay_id}'`);
+ok(tu.i === '14:15' && tu.o === null, 'anon can change or clear the times on a stay');
+await expectError(`update stays set check_in_time = '25:00' where id = '${timed.stay_id}'`, /out of range|invalid input/, 'an impossible time is refused');
+
 // --- Upgrade path: a database set up before 003, with data, then 003 ---------
 const up = new PGlite({ extensions: { btree_gist } });
 await up.exec(STUBS);
@@ -368,6 +387,7 @@ await up.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await up.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 await up.exec(read('supabase/migrations/005_tasks_checklists.sql'));
 await up.exec(read('supabase/migrations/006_expenses.sql'));
+await up.exec(read('supabase/migrations/007_stay_times.sql'));
 await up.exec(read('supabase/demo_policies.sql'));
 await up.exec(read('supabase/demo_policies.sql')); // safe to run twice
 const upRows = (await up.query(`select bill_no, sources, final from stay_totals order by check_in`)).rows;
@@ -381,6 +401,7 @@ ok(upK.commission === 0 && upK.commission_owed === 0, 'after upgrade, older stay
 ok((await up.query(`select count(*)::int n from checklist_items`)).rows[0].n === 13, 'after upgrade the demo can read the 13 starter checklist items');
 ok((await up.query(`select count(*)::int n from tasks`)).rows[0].n === 0, 'after upgrade the demo can read tasks');
 ok((await up.query(`select count(*)::int n from expenses`)).rows[0].n === 0, 'after upgrade the demo can read expenses');
+ok((await up.query(`select count(*)::int n from stay_totals where check_in_time is null`)).rows[0].n === 2, 'after upgrade, older stays have no times');
 await up.exec('reset role;');
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

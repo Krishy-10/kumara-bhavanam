@@ -143,6 +143,11 @@ export function setStayStatus(stayId: string, status: StayStatus): Promise<void>
   return run(db().from('stays').update({ status }).eq('id', stayId));
 }
 
+/** Expected arrival / leaving times ("HH:MM", or null to clear). Information only, never money. */
+export function setStayTimes(stayId: string, checkInTime: string | null, checkOutTime: string | null): Promise<void> {
+  return run(db().from('stays').update({ check_in_time: checkInTime, check_out_time: checkOutTime }).eq('id', stayId));
+}
+
 export function addPayment(p: NewPayment): Promise<void> {
   return run(db().from('payments').insert(p));
 }

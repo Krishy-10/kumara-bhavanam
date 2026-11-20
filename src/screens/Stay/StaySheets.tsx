@@ -1,12 +1,13 @@
 /** Status menu, check-out warning and the ID-checked register for a stay. */
 import { useState } from 'react';
 import { Button } from '@/components/Button';
-import { Group, LabelledChips, TextField } from '@/components/Controls';
+import { Group, LabelledChips, TextField, TimeField } from '@/components/Controls';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
-import { useSaveIdCheck, useSetStatus } from '@/data/hooks';
+import { useSaveIdCheck, useSetStatus, useSetStayTimes } from '@/data/hooks';
 import type { DocType, StayRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
+import { formatShortDay, isTime, timeInput } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { DOC_TYPE_LABEL, STATUS_LABEL, plural } from '@/lib/labels';
 import type { StayStatus } from '@/lib/money';
@@ -173,6 +174,57 @@ export function ConfirmMove({
 const DOCS: readonly DocType[] = ['aadhaar', 'passport', 'driving_licence', 'voter_id', 'other'];
 
 /** Records that an ID was seen. Only the type and, optionally, the last 4 characters. */
+/** Expected arrival and leaving times. Information only: never changes nights or money. */
+export function TimesSheet({ stay, open, onClose, onSaved }: { stay: StayRow; open: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="Arrival and leaving times">
+      {open && <TimesForm stay={stay} onClose={onClose} onSaved={onSaved} />}
+    </Sheet>
+  );
+}
+
+function TimesForm({ stay, onClose, onSaved }: { stay: StayRow; onClose: () => void; onSaved: (msg: string) => void }) {
+  const online = useOnline();
+  const save = useSetStayTimes();
+  const [inT, setIn] = useState(timeInput(stay.check_in_time));
+  const [outT, setOut] = useState(timeInput(stay.check_out_time));
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-2 gap-3">
+        <TimeField label="Arrival time" value={inT} onChange={setIn} />
+        <TimeField label="Leaving time" value={outT} onChange={setOut} />
+      </div>
+      <p className="text-[14px] text-muted">
+        Arriving {formatShortDay(stay.check_in)}, leaving {formatShortDay(stay.check_out)}. Clear a time if it isn’t known.
+      </p>
+      <p className="text-[14px] text-muted">Just a note for you both. Times never change the nights or the bill; add an early or late fee with Add charge if you charge one.</p>
+      {save.error && (
+        <p role="alert" className="rounded-2xl bg-terracotta-50 px-4 py-3 text-[15px] text-terracotta">
+          {save.error.message}
+        </p>
+      )}
+      <Button
+        size="lg"
+        block
+        disabled={!online || save.isPending}
+        onClick={() =>
+          save.mutate(
+            { stayId: stay.stay_id, checkInTime: isTime(inT) ? inT : null, checkOutTime: isTime(outT) ? outT : null },
+            {
+              onSuccess: () => {
+                onSaved('Times saved');
+                onClose();
+              },
+            },
+          )
+        }
+      >
+        {save.isPending ? 'Saving…' : 'Save times'}
+      </Button>
+    </div>
+  );
+}
+
 export function IdCheckSheet({ stayId, open, onClose, onSaved }: { stayId: string; open: boolean; onClose: () => void; onSaved: () => void }) {
   return (
     <Sheet open={open} onClose={onClose} title="ID checked">

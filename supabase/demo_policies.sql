@@ -18,7 +18,7 @@
 -- or edited (only voided), bill numbers come from the database, and
 -- confirmed / checked-in stays cannot overlap.
 --
--- Run after the migrations (001–006). Safe to re-run: it removes its own
+-- Run after the migrations (001–007). Safe to re-run: it removes its own
 -- demo_anon_* policies first, then creates them all again.
 -- =============================================================================
 

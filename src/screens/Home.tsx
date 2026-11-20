@@ -7,7 +7,7 @@ import { firstName } from '@/config/users';
 import { useBlockedDates, useMonthPayments, useStays } from '@/data/hooks';
 import type { StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
-import { formatDayMonth, formatLongDay, formatShortDay, monthKey, monthRange, nightsBetween } from '@/lib/dates';
+import { formatDayMonth, formatLongDay, formatShortDay, formatTime, monthKey, monthRange, nightsBetween } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { STATUS_LABEL, plural } from '@/lib/labels';
 import { collectedBetween, DUE_NOW_STATUSES, toCollect } from '@/lib/money';
@@ -152,6 +152,7 @@ function HomeBody({
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-[13px] text-muted">
                 {next.check_in === today ? 'Arriving today' : `Next arrival · ${formatShortDay(next.check_in).split(',')[0]}`}
+                {formatTime(next.check_in_time) && <span className="num"> · {formatTime(next.check_in_time)}</span>}
                 {next.status === 'tentative' && <span className="ml-1.5 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold">Tentative</span>}
               </span>
               <span className="truncate text-[17px] font-semibold">{next.guest_name}</span>
@@ -235,7 +236,10 @@ function NowStayingCard({ stay, today }: { stay: StayRow; today: string }) {
           <span>
             Night {tonight} of {total}
           </span>
-          <span>Leaves {formatShortDay(stay.check_out)}</span>
+          <span>
+            Leaves {formatShortDay(stay.check_out)}
+            {formatTime(stay.check_out_time) && <span className="num">, {formatTime(stay.check_out_time)}</span>}
+          </span>
         </div>
       </div>
     </Link>

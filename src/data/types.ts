@@ -43,6 +43,9 @@ export interface StayRow {
   commission_paid: number;
   /** commission − commission_paid, from the view. */
   commission_owed: number;
+  /** Expected arrival and leaving times, "HH:MM:SS" in IST (migration 007). Information only. */
+  check_in_time: string | null;
+  check_out_time: string | null;
 }
 
 /** Someone who sends guests: a past guest, priest, agent or driver. */
@@ -128,6 +131,9 @@ export interface BookingPayload {
     occasion: string | null;
     sources: string[];
     notes: string | null;
+    /** Expected times, "HH:MM" (migration 007). Optional. */
+    check_in_time?: string | null;
+    check_out_time?: string | null;
   };
   /** Only for a Referral booking: an existing referrer, or a new one to add. */
   referrer: { id: string } | { name: string; phone: string | null } | null;

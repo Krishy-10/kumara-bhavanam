@@ -62,6 +62,8 @@ const stay = (over: Partial<StayRow>): StayRow => ({
   commission: 500,
   commission_paid: 0,
   commission_owed: 500,
+  check_in_time: null,
+  check_out_time: null,
   ...over,
 });
 
@@ -75,7 +77,7 @@ describe('bookingsCsv', () => {
     expect(lines[0]).toBe(BOOKING_COLUMNS.join(','));
     expect(lines[1]!.startsWith('KB-2026-0001,')).toBe(true);
     expect(lines[2]).toBe(
-      "KB-2026-0041,Lakshmi Narayanan,91 98431 12345,2026-11-14,2026-11-22,8,8,Checked in,Fixed,,40000,1000,1000,40000,35000,0,35000,5000,Referral; WhatsApp,Murugan (auto driver),500,0,500,Pilgrimage,,Krishna Kumar,2026-11-02",
+      "KB-2026-0041,Lakshmi Narayanan,91 98431 12345,2026-11-14,2026-11-22,,,8,8,Checked in,Fixed,,40000,1000,1000,40000,35000,0,35000,5000,Referral; WhatsApp,Murugan (auto driver),500,0,500,Pilgrimage,,Krishna Kumar,2026-11-02",
     );
   });
 
