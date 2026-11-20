@@ -14,11 +14,11 @@
 -- It lives outside supabase/migrations on purpose, so `supabase db push`
 -- never applies it anywhere by accident.
 --
--- The money guards still hold in demo: payments and charges cannot be deleted
+-- The money guards still hold in demo: payments, charges and commissions cannot be deleted
 -- or edited (only voided), bill numbers come from the database, and
 -- confirmed / checked-in stays cannot overlap.
 --
--- Run after the migrations (001, 002, 003). Safe to re-run: it removes its own
+-- Run after the migrations (001–004). Safe to re-run: it removes its own
 -- demo_anon_* policies first, then creates them all again.
 -- =============================================================================
 
@@ -72,5 +72,13 @@ create policy demo_anon_settings_update on public.app_settings for update to ano
 create policy demo_anon_referrers_select on public.referrers for select to anon using (true);
 create policy demo_anon_referrers_insert on public.referrers for insert to anon with check (true);
 create policy demo_anon_referrers_update on public.referrers for update to anon using (true) with check (true);
+
+create policy demo_anon_commissions_select on public.commissions for select to anon using (true);
+create policy demo_anon_commissions_insert on public.commissions for insert to anon with check (true);
+create policy demo_anon_commissions_void   on public.commissions for update to anon using (true) with check (true);
+
+create policy demo_anon_commission_payouts_select on public.commission_payouts for select to anon using (true);
+create policy demo_anon_commission_payouts_insert on public.commission_payouts for insert to anon with check (true);
+create policy demo_anon_commission_payouts_void   on public.commission_payouts for update to anon using (true) with check (true);
 
 commit;

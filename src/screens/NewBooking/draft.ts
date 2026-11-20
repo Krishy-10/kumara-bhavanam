@@ -106,13 +106,26 @@ export function toggleSource(sources: string[], s: string): string[] {
   return SOURCES.filter((x) => next.includes(x));
 }
 
-/** Step 2 checks: only the referrer's details can be wrong (both are optional). */
-export function stayStepError(d: Draft): string | null {
+/** The "Referred by" part of a form (New booking, Add past stay). */
+export type ReferrerDraft = Pick<Draft, 'sources' | 'referrerId' | 'referrerName' | 'referrerPhone'>;
+
+/** Only the referrer's details can be wrong (name and phone are both optional). */
+export function referrerError(d: ReferrerDraft): string | null {
   if (!hasReferral(d) || d.referrerId) return null;
   if (d.referrerPhone.trim() && !normalizePhone(d.referrerPhone)) return 'Check the referrer’s phone number.';
   if (d.referrerPhone.trim() && !d.referrerName.trim()) return 'Enter the referrer’s name.';
   return null;
 }
+
+/** What create_booking gets: a picked referrer by id, a typed one by name, or none (and none without Referral). */
+export function referrerPayload(d: ReferrerDraft): BookingPayload['referrer'] {
+  if (!hasReferral(d)) return null;
+  if (d.referrerId) return { id: d.referrerId };
+  return d.referrerName.trim() ? { name: d.referrerName.trim(), phone: normalizePhone(d.referrerPhone) } : null;
+}
+
+/** Step 2 checks: only the referrer's details can be wrong (both are optional). */
+export const stayStepError = (d: Draft): string | null => referrerError(d);
 
 const isSource = (v: unknown): v is string => typeof v === 'string' && (SOURCES as readonly string[]).includes(v);
 const STATUSES: readonly BookingStatus[] = ['enquiry', 'tentative', 'confirmed'];
@@ -231,13 +244,7 @@ export function toPayload(d: Draft, createdBy: string): BookingPayload {
       sources: d.sources,
       notes: d.notes.trim() || null,
     },
-    referrer: !hasReferral(d)
-      ? null
-      : d.referrerId
-        ? { id: d.referrerId }
-        : d.referrerName.trim()
-          ? { name: d.referrerName.trim(), phone: normalizePhone(d.referrerPhone) }
-          : null,
+    referrer: referrerPayload(d),
     charges: d.lines.map(({ kind, label, amount }) => ({ kind, label, amount })),
     advance: advance > 0 ? { amount: advance, mode: d.advanceMode, paid_on: d.advanceOn, reference: null } : null,
   };

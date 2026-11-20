@@ -6,14 +6,14 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { ErrorState, Screen, Skeleton } from '@/components/Layout';
-import { useAllPayments, useStays } from '@/data/hooks';
-import type { PaymentRow, StayRow } from '@/data/types';
+import { useAllPayments, useCommissionPayouts, useStays } from '@/data/hooks';
+import type { CommissionPayoutRow, PaymentRow, StayRow } from '@/data/types';
 import { useToday } from '@/hooks/useToday';
 import { arrivalsBy, occupancy, PERIOD_LABEL, periodMonths, ranked, spanOf, type Period } from '@/lib/analytics';
 import { formatMonthYear, monthRange } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { OCCASIONS, SOURCES, plural } from '@/lib/labels';
-import { bookedRevenueBy, bookedRevenueByMonth, collectedBetween, collectedByMonth, sumRupees } from '@/lib/money';
+import { bookedRevenueBy, bookedRevenueByMonth, collectedBetween, collectedByMonth, commissionPaidBetween, sumRupees } from '@/lib/money';
 import { cx } from '@/lib/cx';
 import { MoneyByMonthChart, OccupancyChart, RankedBars, SERIES, type MonthRow } from './Charts';
 
@@ -24,7 +24,8 @@ const NOT_TAGGED = 'Not tagged';
 export function Insights() {
   const stays = useStays();
   const payments = useAllPayments();
-  const error = stays.error ?? payments.error;
+  const payouts = useCommissionPayouts();
+  const error = stays.error ?? payments.error ?? payouts.error;
 
   return (
     <Screen>
@@ -33,22 +34,22 @@ export function Insights() {
       </header>
       {error ? (
         <div className="mt-4">
-          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch()])} />
+          <ErrorState message={error.message} onRetry={() => void Promise.all([stays.refetch(), payments.refetch(), payouts.refetch()])} />
         </div>
-      ) : !stays.data || !payments.data ? (
+      ) : !stays.data || !payments.data || !payouts.data ? (
         <div className="mt-4 flex flex-col gap-3 px-4" aria-busy="true" aria-label="Loading">
           <Skeleton className="h-12" />
           <Skeleton className="h-28" />
           <Skeleton className="h-[260px]" />
         </div>
       ) : (
-        <Dashboard stays={stays.data} payments={payments.data} />
+        <Dashboard stays={stays.data} payments={payments.data} payouts={payouts.data} />
       )}
     </Screen>
   );
 }
 
-function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow[] }) {
+function Dashboard({ stays, payments, payouts }: { stays: StayRow[]; payments: PaymentRow[]; payouts: CommissionPayoutRow[] }) {
   const today = useToday();
   const [params, setParams] = useSearchParams();
   const period = (PERIODS as string[]).includes(params.get('p') ?? '') ? (params.get('p') as Period) : '12m';
@@ -79,6 +80,10 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
     const filtered = occasion !== ALL || source !== ALL;
     const ids = new Set(picked.map((s) => s.stay_id));
     const pays = filtered ? payments.filter((p) => ids.has(p.stay_id)) : payments;
+    // A live payout always belongs to its stay's live commission (the database
+    // won't void a commission that is still marked paid).
+    const commissionIds = new Set(picked.map((s) => s.commission_id).filter(Boolean));
+    const outs = payouts.filter((p) => commissionIds.has(p.commission_id));
 
     const bookedMap = bookedRevenueByMonth(picked, months);
     const collectedMap = collectedByMonth(pays, months);
@@ -100,6 +105,8 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
       rows,
       booked: sumRupees(rows.map((r) => r.booked)),
       collected: collectedBetween(pays, start, end),
+      commissionPaid: commissionPaidBetween(outs, start, end),
+      commissionOwed: sumRupees(picked.map((s) => s.commission_owed)),
       occ: occupancy(picked, start, end),
       arrivals: arrivalsBy(picked, () => 'all', start, end).get('all') ?? 0,
       cancelled: picked.filter((s) => s.status === 'cancelled' && s.check_in >= start && s.check_in < end).length,
@@ -107,7 +114,7 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
       bySource: ranked(arrivalsBy(picked, (s) => (s.sources.length > 0 ? s.sources : NOT_TAGGED), start, end)),
       future: end > today && period !== 'month',
     };
-  }, [stays, payments, period, occasion, source, today]);
+  }, [stays, payments, payouts, period, occasion, source, today]);
 
   const multi = view.months.length > 1;
 
@@ -155,6 +162,8 @@ function Dashboard({ stays, payments }: { stays: StayRow[]; payments: PaymentRow
           <Tile label="Nights booked" value={`${view.occ.pct}%`} sub={`${view.occ.booked} of ${view.occ.nights} nights`} />
           <Tile label="Arrivals" value={String(view.arrivals)} sub="stays starting in this period" />
           <Tile label="Cancelled" value={String(view.cancelled)} sub="not counted in booked" />
+          <Tile label="Commission paid" value={formatRupees(view.commissionPaid.amount)} sub="to referrers, by date paid" />
+          <Tile label="Commission owed" value={formatRupees(view.commissionOwed)} sub="to referrers, as of today" />
         </dl>
 
         {multi ? (

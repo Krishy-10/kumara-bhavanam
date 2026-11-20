@@ -12,6 +12,8 @@ import type {
   BookingPayload,
   BookingResult,
   ChargeRow,
+  CommissionPayoutRow,
+  CommissionRow,
   DocType,
   GuestEdit,
   GuestRow,
@@ -20,6 +22,8 @@ import type {
   Language,
   NewBlocked,
   NewCharge,
+  NewCommission,
+  NewCommissionPayout,
   NewPayment,
   NewTemplate,
   PaymentRow,
@@ -67,6 +71,16 @@ export function fetchPaymentsBetween(start: ISODate, end: ISODate): Promise<Paym
 /** Every payment row, for Insights (a few hundred rows at most for one floor). */
 export function fetchAllPayments(): Promise<PaymentRow[]> {
   return unwrap(db().from('payments').select('*').order('paid_on'));
+}
+
+/** A stay's commission rows (voided ones too, shown struck through). */
+export function fetchStayCommissions(stayId: string): Promise<CommissionRow[]> {
+  return unwrap(db().from('commissions').select('*').eq('stay_id', stayId).order('created_at'));
+}
+
+/** Every commission payout (a handful per month at most). */
+export function fetchCommissionPayouts(): Promise<CommissionPayoutRow[]> {
+  return unwrap(db().from('commission_payouts').select('*').order('paid_on'));
 }
 
 export function fetchStayPayments(stayId: string): Promise<PaymentRow[]> {
@@ -128,6 +142,24 @@ export function addPayment(p: NewPayment): Promise<void> {
 /** The one change a payment may ever get. */
 export function voidPayment(id: string, reason: string, by: string): Promise<void> {
   return run(db().from('payments').update({ voided: true, void_reason: reason, voided_by: by }).eq('id', id));
+}
+
+export function addCommission(c: NewCommission): Promise<void> {
+  return run(db().from('commissions').insert(c));
+}
+
+/** The one change a commission may ever get. */
+export function voidCommission(id: string, reason: string, by: string): Promise<void> {
+  return run(db().from('commissions').update({ voided: true, void_reason: reason, voided_by: by }).eq('id', id));
+}
+
+/** Marks commissions paid: one payout row each, for the full amount owed. */
+export function addCommissionPayouts(rows: NewCommissionPayout[]): Promise<void> {
+  return run(db().from('commission_payouts').insert(rows));
+}
+
+export function voidCommissionPayout(id: string, reason: string, by: string): Promise<void> {
+  return run(db().from('commission_payouts').update({ voided: true, void_reason: reason, voided_by: by }).eq('id', id));
 }
 
 export function addCharge(c: NewCharge): Promise<void> {

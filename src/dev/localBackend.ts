@@ -17,6 +17,7 @@ import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 import m001 from '../../supabase/migrations/001_init.sql?raw';
 import m002 from '../../supabase/migrations/002_create_booking.sql?raw';
 import m003 from '../../supabase/migrations/003_sources_referrers.sql?raw';
+import m004 from '../../supabase/migrations/004_commission_past_stays.sql?raw';
 import demoPolicies from '../../supabase/demo_policies.sql?raw';
 import seed from '../../supabase/seed.sql?raw';
 import seedHistory from '../../supabase/seed_history.sql?raw';
@@ -37,7 +38,7 @@ let ready: Promise<PGlite> | null = null;
 function database(): Promise<PGlite> {
   ready ??= (async () => {
     const db = await PGlite.create({ extensions: { btree_gist } });
-    for (const sql of [SUPABASE_STUBS, m001, m002, m003, demoPolicies, seed, seedHistory]) {
+    for (const sql of [SUPABASE_STUBS, m001, m002, m003, m004, demoPolicies, seed, seedHistory]) {
       await db.exec(sql);
     }
     return db;

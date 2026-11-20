@@ -9,7 +9,7 @@ import { Icon } from '@/components/Icon';
 import { useReferrers } from '@/data/hooks';
 import type { ReferrerRow } from '@/data/types';
 import { formatPhone, normalizePhone } from '@/lib/phone';
-import type { Draft } from './draft';
+import type { ReferrerDraft } from './draft';
 
 const MAX_SUGGESTIONS = 4;
 
@@ -20,7 +20,7 @@ function matches(r: ReferrerRow, q: string): boolean {
   return r.name.toLowerCase().includes(text) || (digits.length >= 3 && (r.phone ?? '').includes(digits));
 }
 
-export function ReferrerField({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
+export function ReferrerField({ draft, set }: { draft: ReferrerDraft; set: (p: Partial<ReferrerDraft>) => void }) {
   const referrers = useReferrers();
   const picked = draft.referrerId ? referrers.data?.find((r) => r.id === draft.referrerId) : undefined;
 

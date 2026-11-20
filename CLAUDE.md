@@ -31,9 +31,10 @@ Database (see SETUP.md), run in the Supabase SQL editor in this order:
 1. `supabase/migrations/001_init.sql` (schema, views, constraints, live RLS)
 2. `supabase/migrations/002_create_booking.sql` (`create_booking` RPC: guest + stay + charges + advance, all or nothing)
 3. `supabase/migrations/003_sources_referrers.sql` (several sources per stay, referrers list, driver room dropped; create_booking v2)
-4. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
-5. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-6. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers)
+4. `supabase/migrations/004_commission_past_stays.sql` (commissions + commission_payouts, stay_totals commission columns; create_booking v3 for past stays)
+5. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
+6. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+7. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
 
 New schema changes go in a new numbered migration (the demo database is already live); never edit an applied one.
 
@@ -105,7 +106,16 @@ Screens read stays from the `stay_totals` view (stay + guest + money in one row)
 - No driver room: the toggle and the `driver_room` column are gone.
 - "How they found us" allows several answers: `stays.sources text[]` (values from `SOURCES` in `src/lib/labels.ts`). In analytics a stay counts once under each of its sources.
 - Referrers are a shared list (`referrers`: name, optional phone, archived not deleted). A stay links to one only when its sources include Referral (DB check). In New booking: pick an existing referrer, or type a new name (and optional phone) which `create_booking` adds; a known phone, or a name only one referrer has, reuses that referrer.
-- Commission is NOT built yet. It will hang off `referrers` in the ledger work; never on the guest's bill.
+- Commission: see "Commission and past stays" below. Never on the guest's bill.
+
+### Commission and past stays (decided Nov 21 2026, migration 004)
+- Typed per booking in integer rupees, only on a stay that has a referrer (DB check). At most one live commission per stay.
+- "Owed, then paid": `commissions` holds what is owed; `commission_payouts` records it paid in full (one live payout, amount must equal the commission; no part payments).
+- Both are void-only like payments (`guard_money_row`). A commission with a live payout can't be voided; void the payout first.
+- `stay_totals` carries `commission`, `commission_paid`, `commission_owed`; `money.ts` mirrors them in `commissionTotals`. Guest Final and Balance never include commission.
+- Insights shows commission alongside revenue (paid counted by `paid_on`, owed as of today); booked revenue is unchanged.
+- Past stays go through `create_booking` v3: status `completed` (check-out on or before today, IST), fixed price, money recorded as type `payment` on the date paid. They get a bill number like any booking.
+- Ledger CSV export: bookings and payments files, BOM + CRLF, amounts as plain integers, cells starting with = + - @ prefixed with '. No ID details.
 
 ### Other defaults (stated to the user, not objected to)
 - Blocked dates: start and end both inclusive. They warn in New booking (not a hard DB block). V1 includes a small "Block dates" form on Stays.

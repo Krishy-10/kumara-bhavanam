@@ -31,6 +31,10 @@ const stay: StayRow = {
   refunded: 0,
   net_paid: 35000,
   balance: 5000,
+  commission_id: 'c1',
+  commission: 500,
+  commission_paid: 0,
+  commission_owed: 500,
 };
 
 const charge = (kind: 'charge' | 'discount', label: string, amount: number, voided = false): ChargeRow => ({
@@ -90,6 +94,13 @@ describe('billText', () => {
 
   it('never says tax invoice, GST or anything about ID', () => {
     expect(text).not.toMatch(/tax invoice|gst|aadhaar|id checked/i);
+  });
+
+  it('never shows the referrer or their commission', () => {
+    const referred = { ...stay, sources: ['Referral'], referrer_id: 'r1', referrer_name: 'Murugan (auto driver)' };
+    const t = billText(billModel(referred, [], [pay(10000, '2026-11-02')], settings, '2026-11-19'));
+    expect(t).toContain('BILL KB-2026-0041');
+    expect(t).not.toMatch(/commission|murugan|referr/i);
   });
 });
 

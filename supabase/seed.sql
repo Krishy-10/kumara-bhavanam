@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DEMO ONLY · seed.sql · the PRD's "Demo sample data" (today = 19 Nov 2026)
--- Run on the kb-demo project after the migrations (001, 002, 003) and demo_policies.sql.
+-- Run on the kb-demo project after the migrations (001–004) and demo_policies.sql.
 -- It wipes every app table first, so it can be re-run to reset the demo.
 -- NEVER run this on the live project.
 --
@@ -21,7 +21,7 @@
 
 begin;
 
-truncate table public.payments, public.charges, public.id_checks, public.stays,
+truncate table public.commission_payouts, public.commissions, public.payments, public.charges, public.id_checks, public.stays,
                public.guests, public.referrers, public.blocked_dates, public.message_templates,
                public.bill_counters
   restart identity cascade;

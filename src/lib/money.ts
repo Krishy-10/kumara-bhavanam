@@ -1,6 +1,6 @@
 /**
  * ALL money maths for the app lives here, and mirrors the Postgres views
- * `stay_totals` and `stay_night_revenue` in supabase/migrations/001_init.sql.
+ * `stay_totals` (latest: migrations/004) and `stay_night_revenue` in supabase/migrations.
  * Change one, change the other, and update money.test.ts.
  *
  * Rules (PRD v1.3 "Money rules" + decisions of 19 Nov 2026):
@@ -235,4 +235,115 @@ export function balanceAfter(balance: number, type: PaymentType, amount: number)
   assertRupees(balance);
   assertRupees(amount);
   return type === 'refund' ? balance + amount : balance - amount;
+}
+
+// ---- Referrer commission (never on the guest's bill) ------------------------
+// Mirrors the commission columns of stay_totals (migration 004):
+//   commission      = the live commission's amount (0 if none)
+//   commission_paid = its live payout (0 if none)
+//   commission_owed = commission − commission_paid
+// Commission never changes a stay's Final, Balance or booked revenue.
+
+export interface CommissionLine {
+  amount: number;
+  voided: boolean;
+}
+
+export interface CommissionTotals {
+  commission: number;
+  paid: number;
+  owed: number;
+}
+
+/** One stay's commission: its live commission and live payouts. */
+export function commissionTotals(commissions: CommissionLine[], payouts: CommissionLine[]): CommissionTotals {
+  [...commissions, ...payouts].forEach((x) => assertRupees(x.amount));
+  const commission = sum(commissions.filter((c) => !c.voided).map((c) => c.amount));
+  const paid = sum(payouts.filter((p) => !p.voided).map((p) => p.amount));
+  return { commission, paid, owed: commission - paid };
+}
+
+export interface PayoutLine {
+  amount: number;
+  paid_on: ISODate;
+  voided: boolean;
+}
+
+/** Commission paid to referrers between `start` (inclusive) and `end` (exclusive), by payout date. */
+export function commissionPaidBetween(payouts: PayoutLine[], start: ISODate, end: ISODate): Collected {
+  const inRange = payouts.filter((p) => !p.voided && p.paid_on >= start && p.paid_on < end);
+  inRange.forEach((p) => assertRupees(p.amount));
+  return { amount: sum(inRange.map((p) => p.amount)), count: inRange.length };
+}
+
+// ---- Ledger -------------------------------------------------------------------
+
+export interface LedgerStay {
+  status: StayStatus;
+  final: number;
+  net_paid: number;
+  balance: number;
+  commission: number;
+  commission_owed: number;
+}
+
+export interface LedgerSummary {
+  /** Bookings that are not cancelled. */
+  count: number;
+  /** Σ final of bookings that are not cancelled (cancelled stays count for nothing). */
+  booked: number;
+  /** Σ net_paid of every stay, cancelled included (money kept still counts). */
+  received: number;
+  /** Σ positive balances on checked-in and completed stays (as Home's To collect). */
+  toCollect: number;
+  /** Σ positive balances on stays not yet arrived (confirmed, tentative, enquiry). */
+  dueAhead: number;
+  /** Σ commission still owed to referrers. */
+  commissionOwed: number;
+}
+
+export function ledgerSummary(stays: LedgerStay[]): LedgerSummary {
+  stays.forEach((s) => [s.final, s.net_paid, s.balance, s.commission, s.commission_owed].forEach(assertRupees));
+  const live = stays.filter((s) => s.status !== 'cancelled');
+  return {
+    count: live.length,
+    booked: sum(live.map((s) => s.final)),
+    received: sum(stays.map((s) => s.net_paid)),
+    toCollect: toCollect(stays),
+    dueAhead: sum(live.filter((s) => !DUE_NOW_STATUSES.includes(s.status) && s.balance > 0).map((s) => s.balance)),
+    commissionOwed: sum(stays.map((s) => s.commission_owed)),
+  };
+}
+
+export interface ReferrerStay {
+  referrer_id: string | null;
+  status: StayStatus;
+  commission: number;
+  commission_paid: number;
+  commission_owed: number;
+}
+
+export interface ReferrerTotals {
+  referrerId: string;
+  /** Bookings they sent that are not cancelled. */
+  bookings: number;
+  commission: number;
+  paid: number;
+  owed: number;
+}
+
+/** Per referrer: bookings sent and commission totals. Most owed first, then most bookings. */
+export function referrerTotals(stays: ReferrerStay[]): ReferrerTotals[] {
+  const by = new Map<string, ReferrerTotals>();
+  for (const s of stays) {
+    if (!s.referrer_id) continue;
+    [s.commission, s.commission_paid, s.commission_owed].forEach(assertRupees);
+    const t = by.get(s.referrer_id) ?? { referrerId: s.referrer_id, bookings: 0, commission: 0, paid: 0, owed: 0 };
+    if (s.status !== 'cancelled') t.bookings += 1;
+    t.commission += s.commission;
+    t.paid += s.commission_paid;
+    t.owed += s.commission_owed;
+    by.set(s.referrer_id, t);
+  }
+  return [...by.values()].sort((a, b) => b.owed - a.owed || b.bookings - a.bookings);
 }

@@ -23,6 +23,7 @@ import { formatPhone } from '@/lib/phone';
 import { downloadFile, shareFile, shareText } from '@/lib/share';
 import { cx } from '@/lib/cx';
 import { ChargeSheet, PaymentSheet, VoidSheet, type VoidTarget } from './MoneySheets';
+import { CommissionCard } from './CommissionCard';
 import { ConfirmMove, IdCheckSheet, StatusSheet } from './StaySheets';
 
 type SheetName = 'payment' | 'charge' | 'status' | 'id' | null;
@@ -151,7 +152,7 @@ function StayBill({ stay }: { stay: StayRow }) {
     <Screen withNav={false}>
       <SubHeader
         title={stay.guest_name}
-        subtitle={`${formatRange(stay.check_in, stay.check_out)} · ${plural(stay.nights, 'night')} · ${plural(stay.guests_count, 'guest')}`}
+        subtitle={`${formatRange(stay.check_in, stay.check_out)}${stay.check_in.slice(0, 4) !== today.slice(0, 4) ? ` ${stay.check_in.slice(0, 4)}` : ''} · ${plural(stay.nights, 'night')} · ${plural(stay.guests_count, 'guest')}`}
         right={
           <button
             type="button"
@@ -239,6 +240,8 @@ function StayBill({ stay }: { stay: StayRow }) {
         onRemove={() => removeId.mutate(undefined, { onSuccess: () => show({ text: 'ID check removed' }) })}
         removing={removeId.isPending}
       />
+
+      {stay.referrer_id && <CommissionCard stay={stay} onVoid={setVoiding} onSaved={(text) => show({ text })} />}
 
       <div className="mx-4 mt-3 grid grid-cols-2 gap-2.5">
         <Button variant="outline" icon={<Icon name="rupee" size={20} />} onClick={() => setSheet('payment')} disabled={!online}>

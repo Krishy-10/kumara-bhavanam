@@ -13,6 +13,8 @@ export const keys = {
   blocked: ['blocked'] as const,
   guests: ['guests'] as const,
   referrers: ['referrers'] as const,
+  stayCommissions: (id: string) => ['commissions', id] as const,
+  payouts: ['commissions', 'payouts'] as const,
   guestByPhone: (phone: string) => ['guest', 'phone', phone] as const,
   templates: ['templates'] as const,
   settings: ['settings'] as const,
@@ -52,6 +54,14 @@ export function useBlockedDates() {
 
 export function useGuests() {
   return useQuery({ queryKey: keys.guests, queryFn: api.fetchGuests });
+}
+
+export function useStayCommissions(stayId: string) {
+  return useQuery({ queryKey: keys.stayCommissions(stayId), queryFn: () => api.fetchStayCommissions(stayId) });
+}
+
+export function useCommissionPayouts() {
+  return useQuery({ queryKey: keys.payouts, queryFn: api.fetchCommissionPayouts });
 }
 
 export function useReferrers() {
@@ -105,6 +115,25 @@ export function useAddPayment() {
 
 export function useVoidPayment() {
   return useWrite((a: { id: string; reason: string; by: string }) => api.voidPayment(a.id, a.reason, a.by), MONEY);
+}
+
+// Commission changes stay_totals (commission columns) and the commission lists.
+const COMMISSION: QueryKey[] = [keys.stays, ['commissions']];
+
+export function useAddCommission() {
+  return useWrite(api.addCommission, COMMISSION);
+}
+
+export function useVoidCommission() {
+  return useWrite((a: { id: string; reason: string; by: string }) => api.voidCommission(a.id, a.reason, a.by), COMMISSION);
+}
+
+export function useAddCommissionPayouts() {
+  return useWrite(api.addCommissionPayouts, COMMISSION);
+}
+
+export function useVoidCommissionPayout() {
+  return useWrite((a: { id: string; reason: string; by: string }) => api.voidCommissionPayout(a.id, a.reason, a.by), COMMISSION);
 }
 
 export function useAddCharge() {

@@ -31,12 +31,15 @@ Each should end with "Success. No rows returned".
 | 1 | `supabase/migrations/001_init.sql` | Tables, `stay_totals` view, overlap rule, bill numbers, payment guards, live RLS |
 | 2 | `supabase/migrations/002_create_booking.sql` | `create_booking`: saves guest, stay, extras and advance in one step |
 | 3 | `supabase/migrations/003_sources_referrers.sql` | Several "how they found us" answers per stay, the referrers list, no driver room |
-| 4 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
-| 5 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
-| 6 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history (and sample referrers) for the analytics screen |
+| 4 | `supabase/migrations/004_commission_past_stays.sql` | Referrer commission (owed, then paid) and adding past stays |
+| 5 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
+| 6 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
+| 7 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history (sample referrers and commissions) for the analytics screen |
 
-**Already set up before 20 Nov 2026?** Run only `003_sources_referrers.sql`, then
+**Already set up?** Run only the migrations you haven't run yet, in order, then
 `demo_policies.sql` again (it is safe to re-run). Your bookings are kept.
+- Set up before 20 Nov 2026: `003_sources_referrers.sql`, then `004_commission_past_stays.sql`.
+- Set up on 20 Nov 2026: `004_commission_past_stays.sql` only.
 
 If step 1 complains about `btree_gist`, open **Database → Extensions**, turn on
 **btree_gist**, then run step 1 again.

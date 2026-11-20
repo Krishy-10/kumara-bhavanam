@@ -264,6 +264,17 @@ update public.stays set referrer_id = 'd1000000-0000-4000-8000-000000000002'
 update public.stays set sources = array['Referral', 'WhatsApp'], referrer_id = 'd1000000-0000-4000-8000-000000000003'
  where id = 'b1000000-0000-4000-8000-000000000030';
 
+-- Referrer commission (never on the guest's bill). Paid ones are dated before
+-- 1 Nov 2026; two are still owed, so the Ledger shows money owed to referrers.
+insert into public.commissions (id, stay_id, amount, created_at, created_by) values
+  ('e1000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000006', 500, '2025-12-26 13:00+05:30', 'Padmanabhan'),
+  ('e1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000016', 500, '2026-01-28 13:00+05:30', 'Krishna Kumar'),
+  ('e1000000-0000-4000-8000-000000000003', 'b1000000-0000-4000-8000-000000000013', 700, '2026-01-18 13:00+05:30', 'Padmanabhan'),
+  ('e1000000-0000-4000-8000-000000000004', 'b1000000-0000-4000-8000-000000000030', 1000, '2026-05-30 13:00+05:30', 'Padmanabhan');
+insert into public.commission_payouts (commission_id, amount, mode, paid_on, created_at, created_by) values
+  ('e1000000-0000-4000-8000-000000000001', 500, 'cash', '2025-12-27', '2025-12-27 10:00+05:30', 'Padmanabhan'),
+  ('e1000000-0000-4000-8000-000000000003', 700, 'upi', '2026-01-20', '2026-01-20 10:00+05:30', 'Padmanabhan');
+
 -- ID checks on completed stays: document type and a sample last 4 only.
 insert into public.id_checks (stay_id, doc_type, last4, checked_by, checked_at, created_by)
 select s.id, 'aadhaar', (1000 + abs(hashtext(s.id::text)) % 9000)::text,

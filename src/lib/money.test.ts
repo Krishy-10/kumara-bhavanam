@@ -6,14 +6,19 @@ import {
   bookedRevenueByMonth,
   collectedBetween,
   collectedByMonth,
+  commissionPaidBetween,
+  commissionTotals,
   computeStayTotals,
   dueAfterAdvance,
+  ledgerSummary,
+  referrerTotals,
   revenueByMonth,
   splitAcrossNights,
   toCollect,
   type ChargeLine,
   type PaymentLine,
   type StayPricing,
+  type StayStatus,
 } from './money';
 import { monthRange } from './dates';
 
@@ -234,5 +239,82 @@ describe('balanceAfter', () => {
     expect(balanceAfter(5000, 'payment', 5000)).toBe(0);
     expect(balanceAfter(5000, 'advance', 6000)).toBe(-1000);
     expect(balanceAfter(-1000, 'refund', 1000)).toBe(0);
+  });
+});
+
+describe('referrer commission (mirrors stay_totals, migration 004)', () => {
+  it('counts the live commission and its live payout; voided rows count for nothing', () => {
+    expect(commissionTotals([], [])).toEqual({ commission: 0, paid: 0, owed: 0 });
+    expect(commissionTotals([{ amount: 500, voided: false }], [])).toEqual({ commission: 500, paid: 0, owed: 500 });
+    expect(commissionTotals([{ amount: 500, voided: false }], [{ amount: 500, voided: false }])).toEqual({ commission: 500, paid: 500, owed: 0 });
+    expect(
+      commissionTotals(
+        [
+          { amount: 750, voided: true },
+          { amount: 600, voided: false },
+        ],
+        [{ amount: 750, voided: true }],
+      ),
+    ).toEqual({ commission: 600, paid: 0, owed: 600 });
+  });
+
+  it('refuses fractions', () => {
+    expect(() => commissionTotals([{ amount: 500.5, voided: false }], [])).toThrow();
+  });
+
+  it('counts commission paid by payout date', () => {
+    const payouts = [
+      { amount: 500, paid_on: '2025-12-27', voided: false },
+      { amount: 700, paid_on: '2026-01-20', voided: false },
+      { amount: 750, paid_on: '2026-01-21', voided: true },
+    ];
+    expect(commissionPaidBetween(payouts, '2026-01-01', '2026-02-01')).toEqual({ amount: 700, count: 1 });
+    expect(commissionPaidBetween(payouts, '2025-11-01', '2026-11-01')).toEqual({ amount: 1200, count: 2 });
+  });
+});
+
+describe('ledger', () => {
+  const row = (status: StayStatus, final: number, net_paid: number, balance: number, commission = 0, commission_owed = 0) => ({
+    status,
+    final,
+    net_paid,
+    balance,
+    commission,
+    commission_owed,
+  });
+
+  it('sums booked, received, to collect, due ahead and commission owed', () => {
+    const s = ledgerSummary([
+      row('checked_in', 40000, 35000, 5000),
+      row('completed', 13500, 13500, 0, 500, 500),
+      row('confirmed', 10000, 2000, 8000),
+      row('tentative', 10000, 0, 10000),
+      row('cancelled', 8000, 2000, 0, 300, 0),
+      row('completed', 9000, 9500, -500),
+    ]);
+    expect(s).toEqual({ count: 5, booked: 82500, received: 62000, toCollect: 5000, dueAhead: 18000, commissionOwed: 500 });
+  });
+
+  it('totals per referrer, most owed first; cancelled stays are not counted as bookings', () => {
+    const r = (referrer_id: string | null, status: StayStatus, commission: number, commission_paid: number) => ({
+      referrer_id,
+      status,
+      commission,
+      commission_paid,
+      commission_owed: commission - commission_paid,
+    });
+    expect(
+      referrerTotals([
+        r('m', 'completed', 500, 500),
+        r('m', 'completed', 500, 0),
+        r('s', 'completed', 700, 700),
+        r('s', 'cancelled', 0, 0),
+        r('s', 'completed', 0, 0),
+        r(null, 'completed', 0, 0),
+      ]),
+    ).toEqual([
+      { referrerId: 'm', bookings: 2, commission: 1000, paid: 500, owed: 500 },
+      { referrerId: 's', bookings: 2, commission: 700, paid: 700, owed: 0 },
+    ]);
   });
 });

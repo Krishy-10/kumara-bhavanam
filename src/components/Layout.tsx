@@ -99,6 +99,7 @@ const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/', label: 'Home', icon: 'home', end: true },
   { to: '/stays', label: 'Stays', icon: 'calendar' },
   { to: '/guests', label: 'Guests', icon: 'guests' },
+  { to: '/ledger', label: 'Ledger', icon: 'rupee' },
   { to: '/insights', label: 'Insights', icon: 'insights' },
 ];
 

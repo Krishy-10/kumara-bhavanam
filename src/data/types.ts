@@ -37,6 +37,12 @@ export interface StayRow {
   refunded: number;
   net_paid: number;
   balance: number;
+  /** Referrer commission (migration 004). Never on the guest's bill. */
+  commission_id: string | null;
+  commission: number;
+  commission_paid: number;
+  /** commission − commission_paid, from the view. */
+  commission_owed: number;
 }
 
 /** Someone who sends guests: a past guest, priest, agent or driver. */
@@ -126,7 +132,8 @@ export interface BookingPayload {
   /** Only for a Referral booking: an existing referrer, or a new one to add. */
   referrer: { id: string } | { name: string; phone: string | null } | null;
   charges: { kind: ChargeKind; label: string; amount: number }[];
-  advance: { amount: number; mode: PaymentMode; paid_on: ISODate; reference: string | null } | null;
+  /** The first payment. `type` 'payment' is for a past stay paid at the time; default 'advance'. */
+  advance: { amount: number; mode: PaymentMode; paid_on: ISODate; reference: string | null; type?: 'advance' | 'payment' } | null;
 }
 
 export interface BookingResult {
@@ -169,6 +176,50 @@ export interface SettingsRow {
   contact_phone: string | null;
   address: string | null;
   google_review_link: string | null;
+}
+
+/** Commission typed on a booking, owed to its referrer (migration 004). Void-only. */
+export interface CommissionRow {
+  id: string;
+  stay_id: string;
+  amount: number;
+  voided: boolean;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+/** Commission paid to the referrer, in full. Counted by paid_on. Void-only. */
+export interface CommissionPayoutRow {
+  id: string;
+  commission_id: string;
+  amount: number;
+  mode: PaymentMode;
+  paid_on: ISODate;
+  reference: string | null;
+  voided: boolean;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+export interface NewCommission {
+  stay_id: string;
+  amount: number;
+  created_by: string;
+}
+
+export interface NewCommissionPayout {
+  commission_id: string;
+  amount: number;
+  mode: PaymentMode;
+  paid_on: ISODate;
+  reference: string | null;
+  created_by: string;
 }
 
 export interface NewPayment {

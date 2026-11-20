@@ -33,6 +33,7 @@ await db.exec(STUBS);
 await db.exec(read('supabase/migrations/001_init.sql'));
 await db.exec(read('supabase/migrations/002_create_booking.sql'));
 await db.exec(read('supabase/migrations/003_sources_referrers.sql'));
+await db.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -204,6 +205,76 @@ await db.exec(`set role authenticated; select set_config('request.jwt.claims', '
 ok((await one(`select count(*)::int n from referrers`)).n === 0, 'non-allow-listed signed-in user sees no referrers');
 await db.exec('reset role;');
 
+// --- 004: referrer commission, payouts, past stays ---------------------------
+const kt = (bill) => one(`select commission_id, commission, commission_paid, commission_owed, final, balance from stay_totals where bill_no = '${bill}'`);
+const k1 = await kt('KB-2025-0006');
+ok(k1.commission === 500 && k1.commission_paid === 500 && k1.commission_owed === 0, `sample paid commission: ${k1.commission} paid ${k1.commission_paid} owed ${k1.commission_owed}`);
+const k2 = await kt('KB-2026-0005');
+ok(k2.commission === 500 && k2.commission_paid === 0 && k2.commission_owed === 500, `sample owed commission: owed ${k2.commission_owed}`);
+ok(k2.balance === 0, `commission never touches the guest's balance (balance ${k2.balance})`);
+const k0 = await kt('KB-2026-0041');
+ok(k0.commission_id === null && k0.commission === 0 && k0.commission_owed === 0, 'a stay with no commission shows 0');
+const owedAll = await one(`select coalesce(sum(commission_owed), 0)::int v from stay_totals`);
+ok(owedAll.v === 1500, `owed to referrers in the samples: ${owedAll.v}`);
+const finalsSame = await one(`select count(*)::int n from stay_totals where final <> base + charges - discounts`);
+ok(finalsSame.n === 0, 'final is still base + charges − discounts for every stay');
+
+// The app's flow, as anon: add, pay, void.
+const murStay = byId.stay_id; // Murugan, from the 003 tests above
+const asAnonExec = async (sql) => { await db.exec(as('anon')); try { await db.exec(sql); } finally { await db.exec('reset role;'); } };
+await asAnonExec(`insert into commissions (stay_id, amount, created_by) values ('${murStay}', 750, 'Padmanabhan')`);
+const kc = await one(`select id from commissions where stay_id = '${murStay}' and not voided`);
+ok(!!kc, 'anon (demo) can add a commission');
+await expectError(`${as('anon')} insert into commissions (stay_id, amount, created_by) values ('${murStay}', 100, 'K');`,
+  /commissions_one_live_per_stay/, 'only one live commission per stay');
+await db.exec('reset role;');
+await expectError(`insert into commissions (stay_id, amount, created_by) values ('${legacy.stay_id}', 500, 'K')`,
+  /needs a booking with a referrer/, 'commission refused on a stay with no referrer');
+await expectError(`insert into commissions (stay_id, amount, created_by) values ('${murStay}', 0, 'K')`, /check constraint/, 'zero commission refused');
+await expectError(`insert into commission_payouts (commission_id, amount, mode, paid_on, created_by) values ('${kc.id}', 500, 'cash', '2026-11-21', 'K')`,
+  /full commission/, 'a part payout is refused');
+await asAnonExec(`insert into commission_payouts (commission_id, amount, mode, paid_on, created_by) values ('${kc.id}', 750, 'cash', '2026-11-21', 'Padmanabhan')`);
+let km = await one(`select commission, commission_paid, commission_owed from stay_totals where stay_id = '${murStay}'`);
+ok(km.commission_paid === 750 && km.commission_owed === 0, `marked paid: owed ${km.commission_owed}`);
+await expectError(`insert into commission_payouts (commission_id, amount, mode, paid_on, created_by) values ('${kc.id}', 750, 'cash', '2026-11-22', 'K')`,
+  /commission_payouts_one_live/, 'cannot pay the same commission twice');
+await expectError(`update commissions set voided = true, void_reason = 'Wrong amount', voided_by = 'K' where id = '${kc.id}'`,
+  /Void the payment to the referrer first/, 'a paid commission cannot be voided before its payout');
+await expectError(`update commissions set amount = 900 where id = '${kc.id}'`, /cannot be edited/, 'commission edit refused');
+await expectError(`delete from commission_payouts`, /never deleted/, 'payout delete refused');
+await expectError(`${as('anon')} delete from commissions;`, /permission denied/, 'anon has no delete on commissions');
+await db.exec('reset role;');
+await asAnonExec(`update commission_payouts set voided = true, void_reason = 'Paid twice', voided_by = 'Padmanabhan' where commission_id = '${kc.id}' and not voided`);
+await asAnonExec(`update commissions set voided = true, void_reason = 'Wrong amount', voided_by = 'Padmanabhan' where id = '${kc.id}'`);
+km = await one(`select commission_id, commission, commission_owed from stay_totals where stay_id = '${murStay}'`);
+ok(km.commission_id === null && km.commission === 0, 'voided commission and payout count for nothing');
+await expectError(`insert into commission_payouts (commission_id, amount, mode, paid_on, created_by) values ('${kc.id}', 750, 'cash', '2026-11-21', 'K')`,
+  /voided/, 'a voided commission cannot be paid');
+await asAnonExec(`insert into commissions (stay_id, amount, created_by) values ('${murStay}', 600, 'Padmanabhan')`);
+km = await one(`select commission, commission_owed from stay_totals where stay_id = '${murStay}'`);
+ok(km.commission === 600 && km.commission_owed === 600, 'after voiding, a new commission can be added');
+await db.exec(`set role authenticated; select set_config('request.jwt.claims', '{"role":"authenticated","email":"stranger@example.com"}', false);`);
+ok((await one(`select count(*)::int n from commissions`)).n === 0 && (await one(`select count(*)::int n from commission_payouts`)).n === 0,
+  'non-allow-listed signed-in user sees no commissions or payouts');
+await db.exec('reset role;');
+
+// Past stay: completed, paid at the time as a 'payment'.
+const past = await rpc({
+  guest: { phone: '+910000000777', name: 'Past Guest' },
+  stay: { check_in: '2025-06-01', check_out: '2025-06-04', guests_count: 6, status: 'completed', pricing_mode: 'fixed', fixed_amount: 15000, sources: ['Phone'] },
+  advance: { amount: 15000, mode: 'cash', paid_on: '2025-06-04', type: 'payment' },
+});
+const pt = await one(`select status, final, paid, balance, bill_no from stay_totals where stay_id = '${past.stay_id}'`);
+const ptp = await one(`select type from payments where stay_id = '${past.stay_id}'`);
+ok(pt.status === 'completed' && pt.final === 15000 && pt.balance === 0 && ptp.type === 'payment' && /^KB-\d{4}-\d{4}$/.test(pt.bill_no),
+  `past stay saved as completed and paid (${pt.bill_no}, ${ptp.type})`);
+await expectRpcError(booking({ stay: { check_in: '2030-01-01', check_out: '2030-01-03', status: 'completed', pricing_mode: 'fixed', fixed_amount: 1000 }, charges: [], advance: null }),
+  /checked out by today/, 'a "past" stay in the future is refused');
+await expectRpcError(booking({ stay: st('2027-07-01', '2027-07-02'), charges: [], advance: { amount: 500, mode: 'upi', paid_on: '2026-11-20', type: 'refund' } }),
+  /advance or a payment/, 'the first payment cannot be a refund');
+const advDefault = await rpc({ stay: st('2027-07-03', '2027-07-04'), advance: { amount: 500, mode: 'upi', paid_on: '2026-11-20' } });
+ok((await one(`select type from payments where stay_id = '${advDefault.stay_id}'`)).type === 'advance', 'without a type, the first payment is still an advance');
+
 // --- Upgrade path: a database set up before 003, with data, then 003 ---------
 const up = new PGlite({ extensions: { btree_gist } });
 await up.exec(STUBS);
@@ -215,6 +286,7 @@ await up.exec(`
     ('b9000000-0000-4000-8000-000000000001', 'a9000000-0000-4000-8000-000000000001', '2026-01-01', '2026-01-03', true, 'completed', 'per_night', 5000, 'Phone', 'K'),
     ('b9000000-0000-4000-8000-000000000002', 'a9000000-0000-4000-8000-000000000001', '2026-02-01', '2026-02-02', false, 'completed', 'per_night', 5000, null, 'K');`);
 await up.exec(read('supabase/migrations/003_sources_referrers.sql'));
+await up.exec(read('supabase/migrations/004_commission_past_stays.sql'));
 await up.exec(read('supabase/demo_policies.sql'));
 await up.exec(read('supabase/demo_policies.sql')); // safe to run twice
 const upRows = (await up.query(`select bill_no, sources, final from stay_totals order by check_in`)).rows;
@@ -222,6 +294,9 @@ ok(JSON.stringify(upRows.map((r) => r.sources)) === '[["Phone"],[]]' && upRows[0
   `upgrade keeps existing stays: sources ${JSON.stringify(upRows.map((r) => r.sources))}, final ${upRows[0].final}`);
 await up.exec(`set role anon; select set_config('request.jwt.claims', '{"role":"anon"}', false);`);
 ok((await up.query(`select count(*)::int n from referrers`)).rows[0].n === 0, 'after upgrade the demo can read referrers');
+ok((await up.query(`select count(*)::int n from commissions`)).rows[0].n === 0, 'after upgrade the demo can read commissions');
+const upK = (await up.query(`select commission, commission_owed from stay_totals order by check_in limit 1`)).rows[0];
+ok(upK.commission === 0 && upK.commission_owed === 0, 'after upgrade, older stays show no commission');
 await up.exec('reset role;');
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
