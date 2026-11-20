@@ -262,3 +262,54 @@ export interface GuestEdit {
   notes: string | null;
   language: Language;
 }
+
+// ---- Checklists and tasks (migration 005). No money here. ------------------
+
+export type ChecklistStage = 'before_check_in' | 'at_check_out';
+
+/** One line of the shared checklist. Archived, never deleted. */
+export interface ChecklistItemRow {
+  id: string;
+  stage: ChecklistStage;
+  label: string;
+  sort_order: number;
+  archived_at: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+/** A ticked item for one stay: who ticked it (created_by) and when (created_at). */
+export interface ChecklistTickRow {
+  id: string;
+  stay_id: string;
+  item_id: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface NewChecklistItem {
+  stage: ChecklistStage;
+  label: string;
+  sort_order: number;
+  created_by: string;
+}
+
+/** An in-app to-do. due_on is an IST calendar date. */
+export interface TaskRow {
+  id: string;
+  title: string;
+  due_on: ISODate;
+  /** One of the app's users, or null for either of them. */
+  for_person: string | null;
+  stay_id: string | null;
+  done_at: string | null;
+  done_by: string | null;
+  created_at: string;
+  created_by: string;
+}
+
+export type TaskEdit = Pick<TaskRow, 'title' | 'due_on' | 'for_person' | 'stay_id'>;
+
+export interface NewTask extends TaskEdit {
+  created_by: string;
+}

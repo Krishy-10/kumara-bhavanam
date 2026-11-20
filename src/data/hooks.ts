@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import { monthRange } from '@/lib/dates';
+import { addDays, monthRange, todayIST } from '@/lib/dates';
+import { DONE_KEEP_DAYS } from '@/lib/tasks';
 import * as api from './api';
-import type { BookingPayload } from './types';
+import type { BookingPayload, ChecklistTickRow, TaskRow } from './types';
 
 export const keys = {
   stays: ['stays'] as const,
@@ -18,6 +19,9 @@ export const keys = {
   guestByPhone: (phone: string) => ['guest', 'phone', phone] as const,
   templates: ['templates'] as const,
   settings: ['settings'] as const,
+  checklistItems: ['checklist', 'items'] as const,
+  ticks: (stayIds: readonly string[]) => ['checklist', 'ticks', [...stayIds].sort().join(',')] as const,
+  tasks: ['tasks'] as const,
 };
 
 // ---- Reads ------------------------------------------------------------------
@@ -185,4 +189,95 @@ export function useArchiveTemplate() {
 
 export function useSetReviewLink() {
   return useWrite(api.setReviewLink, [keys.settings]);
+}
+
+// ---- Checklists and tasks ---------------------------------------------------
+
+export function useChecklistItems() {
+  return useQuery({ queryKey: keys.checklistItems, queryFn: api.fetchChecklistItems, staleTime: 5 * 60_000 });
+}
+
+/** Ticks for these stays (one stay page, or the stays arriving soon). */
+export function useTicks(stayIds: readonly string[]) {
+  return useQuery({ queryKey: keys.ticks(stayIds), queryFn: () => api.fetchTicks(stayIds) });
+}
+
+/**
+ * Ticks or unticks one item for one stay. The tick shows at once (every ticks
+ * list that holds the stay is updated in place) and is put back if saving fails.
+ */
+export function useToggleTick() {
+  const qc = useQueryClient();
+  const ticksKey = ['checklist', 'ticks'];
+  return useMutation({
+    mutationFn: (a: { stayId: string; itemId: string; by: string; ticked: boolean }) =>
+      a.ticked ? api.addTick(a.stayId, a.itemId, a.by) : api.removeTick(a.stayId, a.itemId),
+    onMutate: async (a) => {
+      await qc.cancelQueries({ queryKey: ticksKey });
+      const before = qc.getQueriesData<ChecklistTickRow[]>({ queryKey: ticksKey });
+      qc.setQueriesData<ChecklistTickRow[]>({ queryKey: ticksKey }, (rows) => {
+        if (!rows) return rows;
+        const rest = rows.filter((t) => !(t.stay_id === a.stayId && t.item_id === a.itemId));
+        return a.ticked
+          ? [...rest, { id: `pending-${a.itemId}`, stay_id: a.stayId, item_id: a.itemId, created_at: new Date().toISOString(), created_by: a.by }]
+          : rest;
+      });
+      return { before };
+    },
+    onError: (_e, _a, ctx) => ctx?.before.forEach(([key, data]) => qc.setQueryData(key, data)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ticksKey }),
+  });
+}
+
+const CHECKLIST: QueryKey[] = [keys.checklistItems];
+
+export function useAddChecklistItem() {
+  return useWrite(api.addChecklistItem, CHECKLIST);
+}
+
+export function useRenameChecklistItem() {
+  return useWrite((a: { id: string; label: string }) => api.renameChecklistItem(a.id, a.label), CHECKLIST);
+}
+
+export function useArchiveChecklistItem() {
+  return useWrite(api.archiveChecklistItem, CHECKLIST);
+}
+
+export function useSetChecklistOrder() {
+  return useWrite(api.setChecklistOrder, CHECKLIST);
+}
+
+/** Open tasks, plus those done in the last DONE_KEEP_DAYS days. */
+export function useTasks() {
+  return useQuery({ queryKey: keys.tasks, queryFn: () => api.fetchTasks(addDays(todayIST(), -DONE_KEEP_DAYS)) });
+}
+
+export function useAddTask() {
+  return useWrite(api.addTask, [keys.tasks]);
+}
+
+export function useUpdateTask() {
+  return useWrite((a: { id: string; edit: Parameters<typeof api.updateTask>[1] }) => api.updateTask(a.id, a.edit), [keys.tasks]);
+}
+
+export function useDeleteTask() {
+  return useWrite(api.deleteTask, [keys.tasks]);
+}
+
+/** Ticks a task done (or not), showing it at once and undoing that if saving fails. */
+export function useSetTaskDone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (a: { id: string; by: string | null }) => api.setTaskDone(a.id, a.by),
+    onMutate: async (a) => {
+      await qc.cancelQueries({ queryKey: keys.tasks });
+      const before = qc.getQueryData<TaskRow[]>(keys.tasks);
+      qc.setQueryData<TaskRow[]>(keys.tasks, (rows) =>
+        rows?.map((t) => (t.id === a.id ? { ...t, done_at: a.by ? new Date().toISOString() : null, done_by: a.by } : t)),
+      );
+      return { before };
+    },
+    onError: (_e, _a, ctx) => qc.setQueryData(keys.tasks, ctx?.before),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.tasks }),
+  });
 }

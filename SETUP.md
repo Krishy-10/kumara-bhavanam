@@ -32,14 +32,16 @@ Each should end with "Success. No rows returned".
 | 2 | `supabase/migrations/002_create_booking.sql` | `create_booking`: saves guest, stay, extras and advance in one step |
 | 3 | `supabase/migrations/003_sources_referrers.sql` | Several "how they found us" answers per stay, the referrers list, no driver room |
 | 4 | `supabase/migrations/004_commission_past_stays.sql` | Referrer commission (owed, then paid) and adding past stays |
-| 5 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
-| 6 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
-| 7 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history (sample referrers and commissions) for the analytics screen |
+| 5 | `supabase/migrations/005_tasks_checklists.sql` | Tasks, and the before check-in / at check-out checklists (with starter items) |
+| 6 | `supabase/demo_policies.sql` | **Demo only.** Lets the app read and write without sign-in |
+| 7 | `supabase/seed.sql` | The 4 PRD sample stays, blocked dates, message templates |
+| 8 | `supabase/seed_history.sql` | *Optional.* 12 months of sample history (sample referrers and commissions) for the analytics screen |
 
 **Already set up?** Run only the migrations you haven't run yet, in order, then
 `demo_policies.sql` again (it is safe to re-run). Your bookings are kept.
-- Set up before 20 Nov 2026: `003_sources_referrers.sql`, then `004_commission_past_stays.sql`.
-- Set up on 20 Nov 2026: `004_commission_past_stays.sql` only.
+- Set up before 20 Nov 2026: `003_sources_referrers.sql`, `004_commission_past_stays.sql`, then `005_tasks_checklists.sql`.
+- Set up on 20 Nov 2026 (before the Ledger): `004_commission_past_stays.sql`, then `005_tasks_checklists.sql`.
+- Already have the Ledger: `005_tasks_checklists.sql` only.
 
 If step 1 complains about `btree_gist`, open **Database → Extensions**, turn on
 **btree_gist**, then run step 1 again.

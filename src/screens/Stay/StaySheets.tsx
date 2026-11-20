@@ -8,7 +8,7 @@ import { useSaveIdCheck, useSetStatus } from '@/data/hooks';
 import type { DocType, StayRow } from '@/data/types';
 import { useOnline } from '@/hooks/useOnline';
 import { formatRupees } from '@/lib/format';
-import { DOC_TYPE_LABEL, STATUS_LABEL } from '@/lib/labels';
+import { DOC_TYPE_LABEL, STATUS_LABEL, plural } from '@/lib/labels';
 import type { StayStatus } from '@/lib/money';
 import { cx } from '@/lib/cx';
 import { useCurrentUser } from '@/session/UserContext';
@@ -83,55 +83,87 @@ export function StatusSheet({
   );
 }
 
-/** Asks before a step that's easy to regret: cancelling, or checking out with money due. */
+/**
+ * Asks before a step that's easy to regret: cancelling, checking out with money
+ * due, or checking in or out with checklist items unticked. Only cancelling
+ * needs a firm yes; the rest are warnings and can go ahead.
+ */
 export function ConfirmMove({
   stay,
   to,
+  checklistLeft = 0,
   onClose,
   onDone,
   onAddPayment,
+  onShowChecklist = onClose,
 }: {
   stay: StayRow;
   to: StayStatus | null;
+  /** Unticked items on the list for this move (before check-in, or at check-out). */
+  checklistLeft?: number;
   onClose: () => void;
   onDone: (to: StayStatus) => void;
   onAddPayment: () => void;
+  onShowChecklist?: () => void;
 }) {
   const set = useSetStatus();
   const online = useOnline();
   const go = () => set.mutate({ stayId: stay.stay_id, status: to! }, { onSuccess: () => onDone(to!) });
-  const checkout = to === 'completed';
+  const cancel = to === 'cancelled';
+  const due = to === 'completed' && stay.balance > 0;
+  const unticked = (to === 'completed' || to === 'checked_in') && checklistLeft > 0;
+  const step = to === 'checked_in' ? 'check in' : 'check out';
+  const title = cancel ? 'Cancel this booking?' : due ? 'Balance still due' : 'Checklist not finished';
   return (
-    <Sheet open={to !== null} onClose={onClose} title={checkout ? 'Balance still due' : 'Cancel this booking?'}>
+    <Sheet open={to !== null} onClose={onClose} title={title}>
       <div className="flex flex-col gap-4 pb-2">
-        {checkout ? (
-          <p className="text-[16px]">
-            <span className="num font-bold text-terracotta">{formatRupees(stay.balance)}</span> is still due from {stay.guest_name}. You can check out anyway and collect it later; it will
-            show under To collect on Home.
-          </p>
-        ) : (
+        {cancel ? (
           <p className="text-[16px]">
             The dates become free for others. Payments stay on record{stay.net_paid > 0 ? ` (${formatRupees(stay.net_paid)} received)` : ''}; if you return money, add it as a
             refund.
           </p>
+        ) : (
+          <>
+            {due && (
+              <p className="text-[16px]">
+                <span className="num font-bold text-terracotta">{formatRupees(stay.balance)}</span> is still due from {stay.guest_name}. You can check out anyway and collect it
+                later; it will show under To collect on Home.
+              </p>
+            )}
+            {unticked && (
+              <p className="flex gap-2.5 rounded-2xl bg-haldi px-4 py-3 text-[15px] text-teak">
+                <Icon name="alert" size={20} className="mt-0.5 shrink-0 text-marigold" />
+                <span>
+                  {plural(checklistLeft, 'item')} on the {to === 'checked_in' ? 'before check-in' : 'check-out'} checklist {checklistLeft === 1 ? 'isn’t' : 'aren’t'} ticked. You can{' '}
+                  {step} anyway.
+                </span>
+              </p>
+            )}
+          </>
         )}
         {set.error && (
           <p role="alert" className="rounded-2xl bg-terracotta-50 px-4 py-3 text-[15px] text-terracotta">
             {set.error.message}
           </p>
         )}
-        {checkout && (
+        {due && (
           <Button size="lg" block onClick={onAddPayment}>
             Add payment first
           </Button>
         )}
-        <Button size="lg" block variant={checkout ? 'outline' : 'danger'} disabled={!online || set.isPending} onClick={go}>
-          {set.isPending ? 'Saving…' : checkout ? 'Check out anyway' : 'Yes, cancel it'}
+        <Button size="lg" block variant={cancel ? 'danger' : due ? 'outline' : 'primary'} disabled={!online || set.isPending} onClick={go}>
+          {set.isPending ? 'Saving…' : cancel ? 'Yes, cancel it' : to === 'checked_in' ? 'Check in anyway' : 'Check out anyway'}
         </Button>
-        {!checkout && (
+        {cancel ? (
           <Button block variant="ghost" onClick={onClose}>
             Keep the booking
           </Button>
+        ) : (
+          unticked && (
+            <Button block variant="ghost" onClick={onShowChecklist}>
+              Go to the checklist
+            </Button>
+          )
         )}
       </div>
     </Sheet>

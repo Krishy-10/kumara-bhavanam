@@ -81,6 +81,9 @@ const PATHS = {
   edit: <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />,
   bed: <path d="M3 18V7M3 13h18v5M21 13v-2a3 3 0 0 0-3-3h-7v5M6.5 11.5h.01" />,
   rupee: <path d="M7 4h10M7 8.5h10M7 4c5 0 6.5 2 6.5 4.5S11.5 13 8 13h-1l7.5 7" />,
+  tasks: <path d="M4 6.5l1.8 1.8L9 5M4 13.5l1.8 1.8L9 12M12 7h8M12 14h8M12 19.5h8M4.5 19.5h.01" />,
+  up: <path d="M6 15l6-6 6 6" />,
+  down: <path d="M6 9l6 6 6-6" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

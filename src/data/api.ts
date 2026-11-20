@@ -12,6 +12,8 @@ import type {
   BookingPayload,
   BookingResult,
   ChargeRow,
+  ChecklistItemRow,
+  ChecklistTickRow,
   CommissionPayoutRow,
   CommissionRow,
   DocType,
@@ -22,13 +24,17 @@ import type {
   Language,
   NewBlocked,
   NewCharge,
+  NewChecklistItem,
   NewCommission,
   NewCommissionPayout,
   NewPayment,
+  NewTask,
   NewTemplate,
   PaymentRow,
   SettingsRow,
   StayRow,
+  TaskEdit,
+  TaskRow,
   TemplateRow,
 } from './types';
 
@@ -209,4 +215,64 @@ export function archiveTemplate(id: string): Promise<void> {
 
 export function setReviewLink(link: string | null): Promise<void> {
   return run(db().from('app_settings').update({ google_review_link: link }).eq('id', true));
+}
+
+// ---- Checklists and tasks ---------------------------------------------------
+
+/** The shared checklist, both stages, in screen order. */
+export function fetchChecklistItems(): Promise<ChecklistItemRow[]> {
+  return unwrap(db().from('checklist_items').select('*').is('archived_at', null).order('stage').order('sort_order').order('created_at'));
+}
+
+/** Ticks for the given stays (a stay page, or the stays arriving soon). */
+export async function fetchTicks(stayIds: readonly string[]): Promise<ChecklistTickRow[]> {
+  if (stayIds.length === 0) return [];
+  return unwrap(db().from('checklist_ticks').select('*').in('stay_id', [...stayIds]));
+}
+
+export function addTick(stayId: string, itemId: string, by: string): Promise<void> {
+  return run(db().from('checklist_ticks').insert({ stay_id: stayId, item_id: itemId, created_by: by }));
+}
+
+export function removeTick(stayId: string, itemId: string): Promise<void> {
+  return run(db().from('checklist_ticks').delete().eq('stay_id', stayId).eq('item_id', itemId));
+}
+
+export function addChecklistItem(item: NewChecklistItem): Promise<void> {
+  return run(db().from('checklist_items').insert(item));
+}
+
+export function renameChecklistItem(id: string, label: string): Promise<void> {
+  return run(db().from('checklist_items').update({ label }).eq('id', id));
+}
+
+/** Removes an item from the list (kept in the database for old ticks). */
+export function archiveChecklistItem(id: string): Promise<void> {
+  return run(db().from('checklist_items').update({ archived_at: new Date().toISOString() }).eq('id', id));
+}
+
+export async function setChecklistOrder(rows: { id: string; sort_order: number }[]): Promise<void> {
+  await Promise.all(rows.map((r) => run(db().from('checklist_items').update({ sort_order: r.sort_order }).eq('id', r.id))));
+}
+
+/** Every open task, and tasks done since `doneSince` (an ISO timestamp). */
+export function fetchTasks(doneSince: string): Promise<TaskRow[]> {
+  return unwrap(db().from('tasks').select('*').or(`done_at.is.null,done_at.gte.${doneSince}`).order('due_on').order('created_at'));
+}
+
+export function addTask(t: NewTask): Promise<void> {
+  return run(db().from('tasks').insert(t));
+}
+
+export function updateTask(id: string, edit: TaskEdit): Promise<void> {
+  return run(db().from('tasks').update(edit).eq('id', id));
+}
+
+/** Ticks a task done by `by`, or back to not done when `by` is null. */
+export function setTaskDone(id: string, by: string | null): Promise<void> {
+  return run(db().from('tasks').update({ done_at: by ? new Date().toISOString() : null, done_by: by }).eq('id', id));
+}
+
+export function deleteTask(id: string): Promise<void> {
+  return run(db().from('tasks').delete().eq('id', id));
 }

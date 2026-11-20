@@ -32,9 +32,10 @@ Database (see SETUP.md), run in the Supabase SQL editor in this order:
 2. `supabase/migrations/002_create_booking.sql` (`create_booking` RPC: guest + stay + charges + advance, all or nothing)
 3. `supabase/migrations/003_sources_referrers.sql` (several sources per stay, referrers list, driver room dropped; create_booking v2)
 4. `supabase/migrations/004_commission_past_stays.sql` (commissions + commission_payouts, stay_totals commission columns; create_booking v3 for past stays)
-5. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
-6. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
-7. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
+5. `supabase/migrations/005_tasks_checklists.sql` (checklist_items with starter items, checklist_ticks, tasks; no money)
+6. `supabase/demo_policies.sql` (DEMO ONLY: anon read/write; never on live; safe to re-run, and must be re-run after a migration adds a table)
+7. `supabase/seed.sql` (DEMO ONLY: the 4 PRD stays; wipes tables first)
+8. `supabase/seed_history.sql` (DEMO ONLY, optional: Nov 2025 – Oct 2026 history, with sample referrers and commissions)
 
 New schema changes go in a new numbered migration (the demo database is already live); never edit an applied one.
 
@@ -116,6 +117,14 @@ Screens read stays from the `stay_totals` view (stay + guest + money in one row)
 - Insights shows commission alongside revenue (paid counted by `paid_on`, owed as of today); booked revenue is unchanged.
 - Past stays go through `create_booking` v3: status `completed` (check-out on or before today, IST), fixed price, money recorded as type `payment` on the date paid. They get a bill number like any booking.
 - Ledger CSV export: bookings and payments files, BOM + CRLF, amounts as plain integers, cells starting with = + - @ prefixed with '. No ID details.
+
+### Tasks, reminders and checklists (decided Nov 21 2026, migration 005)
+- In-app only: nothing is sent, no phone notifications. Screens: Home "To do today" card, `/tasks`, `/checklists`, and cards on Stay detail.
+- Checklists: one shared list per stage (`before_check_in`, `at_check_out`) in `checklist_items`, edited on either phone (add, rename, reorder, remove). Items are archived, never deleted. Starter items are inserted by 005.
+- Ticks are per stay in `checklist_ticks` (created_by = who ticked, created_at = when). Untick deletes the tick. Tentative/confirmed stays show the before-check-in list; checked-in/completed show the at-check-out list.
+- Checklists warn, never block: Check in / Check out show how many items are unticked and allow going ahead (together with the balance-due warning).
+- Tasks (`tasks`): title, due date (IST), optional for_person (one of the picker names; null = either), optional stay link; ticked done with done_by/done_at; can be edited or deleted. Done tasks show for 30 days.
+- Automatic reminders are computed in `src/lib/tasks.ts`, never stored: arrival prep (confirmed, arriving today or tomorrow, before-check-in list unfinished) and balance to collect (checked_in/completed with balance > 0, the view's figure). No review-request or Form C reminders (owner's choice).
 
 ### Other defaults (stated to the user, not objected to)
 - Blocked dates: start and end both inclusive. They warn in New booking (not a hard DB block). V1 includes a small "Block dates" form on Stays.

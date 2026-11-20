@@ -34,6 +34,7 @@ await db.exec(read('supabase/migrations/001_init.sql'));
 await db.exec(read('supabase/migrations/002_create_booking.sql'));
 await db.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await db.exec(read('supabase/migrations/004_commission_past_stays.sql'));
+await db.exec(read('supabase/migrations/005_tasks_checklists.sql'));
 console.log('migration ok');
 await db.exec(read('supabase/demo_policies.sql'));
 await db.exec(read('supabase/seed.sql'));
@@ -275,6 +276,53 @@ await expectRpcError(booking({ stay: st('2027-07-01', '2027-07-02'), charges: []
 const advDefault = await rpc({ stay: st('2027-07-03', '2027-07-04'), advance: { amount: 500, mode: 'upi', paid_on: '2026-11-20' } });
 ok((await one(`select type from payments where stay_id = '${advDefault.stay_id}'`)).type === 'advance', 'without a type, the first payment is still an advance');
 
+// --- Checklists and tasks (005) ----------------------------------------------
+const items = await one(`select count(*) filter (where stage = 'before_check_in')::int b, count(*) filter (where stage = 'at_check_out')::int a from checklist_items where archived_at is null`);
+ok(items.b === 8 && items.a === 5, `starter checklist: ${items.b} before check-in, ${items.a} at check-out`);
+const lakTicks = await one(`select count(*)::int n from checklist_ticks where stay_id = 'b0000000-0000-4000-8000-000000000001'`);
+const priTicks = await one(`select count(*)::int n from checklist_ticks where stay_id = 'b0000000-0000-4000-8000-000000000002'`);
+ok(lakTicks.n === 8 && priTicks.n === 2, `seed ticks: Lakshmi ${lakTicks.n}, Priya ${priTicks.n}`);
+ok((await one(`select count(*)::int n from tasks`)).n === 4, 'seed has 4 tasks');
+const itemAt = (await one(`select id from checklist_items where stage = 'at_check_out' order by sort_order limit 1`)).id;
+await asAnonExec(`insert into checklist_ticks (stay_id, item_id, created_by) values ('b0000000-0000-4000-8000-000000000001', '${itemAt}', 'Krishna Kumar')`);
+ok((await one(`select count(*)::int n from checklist_ticks where item_id = '${itemAt}'`)).n === 1, 'anon can tick an item');
+await expectError(`${as('anon')} insert into checklist_ticks (stay_id, item_id, created_by) values ('b0000000-0000-4000-8000-000000000001', '${itemAt}', 'Padmanabhan');`,
+  /duplicate key/, 'an item is ticked once per stay');
+await db.exec('reset role;');
+await expectError(`insert into checklist_ticks (stay_id, item_id, created_by) values ('b0000000-0000-4000-8000-000000000001', '${itemAt}', ' ')`,
+  /check constraint|duplicate key/, 'a tick needs who ticked it');
+await asAnonExec(`delete from checklist_ticks where stay_id = 'b0000000-0000-4000-8000-000000000001' and item_id = '${itemAt}'`);
+ok((await one(`select count(*)::int n from checklist_ticks where item_id = '${itemAt}'`)).n === 0, 'anon can untick (the tick is removed)');
+await asAnonExec(`insert into checklist_items (stage, label, sort_order, created_by) values ('at_check_out', 'Note the meter reading', 60, 'Padmanabhan')`);
+await asAnonExec(`update checklist_items set label = 'Hand over the keys' where id = '${itemAt}'`);
+await asAnonExec(`update checklist_items set archived_at = now() where label = 'Note the meter reading'`);
+ok((await one(`select count(*)::int n from checklist_items where stage = 'at_check_out' and archived_at is null`)).n === 5 &&
+   (await one(`select label from checklist_items where id = '${itemAt}'`)).label === 'Hand over the keys',
+  'anon can add, rename and remove (archive) checklist items');
+await expectError(`delete from checklist_items where id = '${itemAt}'`, /never deleted/, 'checklist items are never deleted');
+await expectError(`${as('anon')} delete from checklist_items;`, /permission denied/, 'anon has no delete on checklist items');
+await db.exec('reset role;');
+await expectError(`insert into checklist_items (stage, label, created_by) values ('during_stay', 'X', 'K')`, /check constraint/, 'unknown checklist stage refused');
+await expectError(`insert into checklist_items (stage, label, created_by) values ('at_check_out', '  ', 'K')`, /check constraint/, 'blank checklist item refused');
+
+await asAnonExec(`insert into tasks (id, title, due_on, for_person, stay_id, created_by) values
+  ('d5000000-0000-4000-8000-000000000001', 'Fix the balcony light', '2026-11-22', 'Padmanabhan', 'b0000000-0000-4000-8000-000000000001', 'Krishna Kumar')`);
+await asAnonExec(`update tasks set done_at = now(), done_by = 'Padmanabhan' where id = 'd5000000-0000-4000-8000-000000000001'`);
+await asAnonExec(`update tasks set title = 'Fix the balcony light (LED)', due_on = '2026-11-23', done_at = null, done_by = null where id = 'd5000000-0000-4000-8000-000000000001'`);
+const tk = await one(`select title, due_on::text d, done_at from tasks where id = 'd5000000-0000-4000-8000-000000000001'`);
+ok(tk.title === 'Fix the balcony light (LED)' && tk.d === '2026-11-23' && tk.done_at === null, 'anon can add, tick, untick and edit a task');
+await expectError(`update tasks set done_at = now() where id = 'd5000000-0000-4000-8000-000000000001'`, /tasks_done_has_by/, 'a done task records who did it');
+await expectError(`insert into tasks (title, due_on, created_by) values (' ', '2026-11-22', 'K')`, /check constraint/, 'blank task refused');
+await expectError(`insert into tasks (title, due_on, created_by) values ('X', '2026-11-22', '')`, /check constraint/, 'a task records who added it');
+await asAnonExec(`delete from tasks where id = 'd5000000-0000-4000-8000-000000000001'`);
+ok((await one(`select count(*)::int n from tasks where id = 'd5000000-0000-4000-8000-000000000001'`)).n === 0, 'anon can delete a task');
+await db.exec(`set role authenticated; select set_config('request.jwt.claims', '{"role":"authenticated","email":"stranger@example.com"}', false);`);
+ok((await one(`select count(*)::int n from tasks`)).n === 0 && (await one(`select count(*)::int n from checklist_items`)).n === 0 &&
+   (await one(`select count(*)::int n from checklist_ticks`)).n === 0, 'non-allow-listed signed-in user sees no tasks or checklists');
+await db.exec('reset role;');
+await db.exec(read('supabase/demo_policies.sql'));
+ok(true, 'demo_policies.sql re-runs after 005');
+
 // --- Upgrade path: a database set up before 003, with data, then 003 ---------
 const up = new PGlite({ extensions: { btree_gist } });
 await up.exec(STUBS);
@@ -287,6 +335,7 @@ await up.exec(`
     ('b9000000-0000-4000-8000-000000000002', 'a9000000-0000-4000-8000-000000000001', '2026-02-01', '2026-02-02', false, 'completed', 'per_night', 5000, null, 'K');`);
 await up.exec(read('supabase/migrations/003_sources_referrers.sql'));
 await up.exec(read('supabase/migrations/004_commission_past_stays.sql'));
+await up.exec(read('supabase/migrations/005_tasks_checklists.sql'));
 await up.exec(read('supabase/demo_policies.sql'));
 await up.exec(read('supabase/demo_policies.sql')); // safe to run twice
 const upRows = (await up.query(`select bill_no, sources, final from stay_totals order by check_in`)).rows;
@@ -297,6 +346,8 @@ ok((await up.query(`select count(*)::int n from referrers`)).rows[0].n === 0, 'a
 ok((await up.query(`select count(*)::int n from commissions`)).rows[0].n === 0, 'after upgrade the demo can read commissions');
 const upK = (await up.query(`select commission, commission_owed from stay_totals order by check_in limit 1`)).rows[0];
 ok(upK.commission === 0 && upK.commission_owed === 0, 'after upgrade, older stays show no commission');
+ok((await up.query(`select count(*)::int n from checklist_items`)).rows[0].n === 13, 'after upgrade the demo can read the 13 starter checklist items');
+ok((await up.query(`select count(*)::int n from tasks`)).rows[0].n === 0, 'after upgrade the demo can read tasks');
 await up.exec('reset role;');
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');

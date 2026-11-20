@@ -11,7 +11,9 @@ import { formatDayMonth, formatLongDay, formatShortDay, monthKey, monthRange, ni
 import { formatRupees } from '@/lib/format';
 import { STATUS_LABEL, plural } from '@/lib/labels';
 import { collectedBetween, DUE_NOW_STATUSES, toCollect } from '@/lib/money';
+import { Toast, useToast } from '@/components/Toast';
 import { PipelineLink } from '@/screens/Pipeline/Pipeline';
+import { TodayCard } from '@/screens/Tasks/TodayCard';
 import { currentStay, nextArrival, nextFreeWindow, nightProgress, occupiedRanges } from '@/lib/occupancy';
 
 const rise = (i: number) => ({
@@ -27,6 +29,7 @@ export function Home() {
   const payments = useMonthPayments(month);
   const blocked = useBlockedDates();
   const navigate = useNavigate();
+  const { toast, show, hide } = useToast();
 
   const loading = stays.isPending || payments.isPending || blocked.isPending;
   const error = stays.error ?? payments.error ?? blocked.error;
@@ -65,6 +68,7 @@ export function Home() {
           stays={stays.data}
           payments={payments.data}
           blocked={blocked.data}
+          onMessage={(text, undo) => show({ text, action: undo ? { label: 'Undo', onClick: undo } : undefined })}
         />
       )}
 
@@ -73,6 +77,7 @@ export function Home() {
           New booking
         </Button>
       </motion.div>
+      <Toast toast={toast} onHide={hide} />
     </Screen>
   );
 }
@@ -83,12 +88,14 @@ function HomeBody({
   stays,
   payments,
   blocked,
+  onMessage,
 }: {
   today: string;
   month: string;
   stays: StayRow[];
   payments: Parameters<typeof collectedBetween>[0];
   blocked: Parameters<typeof occupiedRanges>[1];
+  onMessage: (text: string, undo?: () => void) => void;
 }) {
   const now = currentStay(stays, today);
   const next = nextArrival(stays, today, now);
@@ -157,6 +164,10 @@ function HomeBody({
           </Link>
         </motion.div>
       )}
+
+      <motion.div {...rise(3)} className="px-[18px]">
+        <TodayCard today={today} onMessage={onMessage} />
+      </motion.div>
 
       <motion.div {...rise(3)} className="px-[18px] empty:hidden">
         <PipelineLink stays={stays} />

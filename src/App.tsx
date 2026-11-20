@@ -17,6 +17,8 @@ import { Guests } from '@/screens/Guests/Guests';
 import { Pipeline } from '@/screens/Pipeline/Pipeline';
 import { Ledger } from '@/screens/Ledger/Ledger';
 import { AddPastStay } from '@/screens/Ledger/AddPastStay';
+import { Tasks } from '@/screens/Tasks/Tasks';
+import { Checklists } from '@/screens/Tasks/Checklists';
 
 // Charts are heavy; load Insights only when it's opened.
 const Insights = lazy(() => import('@/screens/Insights/Insights').then((m) => ({ default: m.Insights })));
@@ -47,6 +49,8 @@ export function App() {
                 <Route path="/ledger" element={<RequireUser><Ledger /></RequireUser>} />
                 <Route path="/ledger/past" element={<RequireUser><AddPastStay /></RequireUser>} />
                 <Route path="/pipeline" element={<RequireUser><Pipeline /></RequireUser>} />
+                <Route path="/tasks" element={<RequireUser><Tasks /></RequireUser>} />
+                <Route path="/checklists" element={<RequireUser><Checklists /></RequireUser>} />
                 <Route path="/guests" element={<RequireUser><Guests /></RequireUser>} />
                 <Route path="/guests/:guestId" element={<RequireUser><GuestPage /></RequireUser>} />
                 <Route path="/insights" element={<RequireUser><Suspense fallback={null}><Insights /></Suspense></RequireUser>} />

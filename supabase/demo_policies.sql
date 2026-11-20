@@ -18,7 +18,7 @@
 -- or edited (only voided), bill numbers come from the database, and
 -- confirmed / checked-in stays cannot overlap.
 --
--- Run after the migrations (001–004). Safe to re-run: it removes its own
+-- Run after the migrations (001–005). Safe to re-run: it removes its own
 -- demo_anon_* policies first, then creates them all again.
 -- =============================================================================
 
@@ -80,5 +80,18 @@ create policy demo_anon_commissions_void   on public.commissions for update to a
 create policy demo_anon_commission_payouts_select on public.commission_payouts for select to anon using (true);
 create policy demo_anon_commission_payouts_insert on public.commission_payouts for insert to anon with check (true);
 create policy demo_anon_commission_payouts_void   on public.commission_payouts for update to anon using (true) with check (true);
+
+create policy demo_anon_checklist_items_select on public.checklist_items for select to anon using (true);
+create policy demo_anon_checklist_items_insert on public.checklist_items for insert to anon with check (true);
+create policy demo_anon_checklist_items_update on public.checklist_items for update to anon using (true) with check (true);
+
+create policy demo_anon_checklist_ticks_select on public.checklist_ticks for select to anon using (true);
+create policy demo_anon_checklist_ticks_insert on public.checklist_ticks for insert to anon with check (true);
+create policy demo_anon_checklist_ticks_delete on public.checklist_ticks for delete to anon using (true);
+
+create policy demo_anon_tasks_select on public.tasks for select to anon using (true);
+create policy demo_anon_tasks_insert on public.tasks for insert to anon with check (true);
+create policy demo_anon_tasks_update on public.tasks for update to anon using (true) with check (true);
+create policy demo_anon_tasks_delete on public.tasks for delete to anon using (true);
 
 commit;

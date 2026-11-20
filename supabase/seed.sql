@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DEMO ONLY · seed.sql · the PRD's "Demo sample data" (today = 19 Nov 2026)
--- Run on the kb-demo project after the migrations (001–004) and demo_policies.sql.
+-- Run on the kb-demo project after the migrations (001–005) and demo_policies.sql.
 -- It wipes every app table first, so it can be re-run to reset the demo.
 -- NEVER run this on the live project.
 --
@@ -21,7 +21,8 @@
 
 begin;
 
-truncate table public.commission_payouts, public.commissions, public.payments, public.charges, public.id_checks, public.stays,
+-- The shared checklist (checklist_items) is kept; only per-stay ticks are wiped.
+truncate table public.checklist_ticks, public.tasks, public.commission_payouts, public.commissions, public.payments, public.charges, public.id_checks, public.stays,
                public.guests, public.referrers, public.blocked_dates, public.message_templates,
                public.bill_counters
   restart identity cascade;
@@ -76,6 +77,23 @@ update public.payments
 -- ID check: type and last 4 only ---------------------------------------------
 insert into public.id_checks (stay_id, doc_type, last4, checked_by, checked_at, created_by) values
   ('b0000000-0000-4000-8000-000000000001', 'aadhaar', '4821', 'Krishna Kumar', '2026-11-14 13:10+05:30', 'Krishna Kumar');
+
+-- Checklist ticks: Lakshmi's floor was made ready before she arrived; two
+-- items done for Priya so far. Items are looked up by stage, not by id.
+insert into public.checklist_ticks (stay_id, item_id, created_at, created_by)
+select 'b0000000-0000-4000-8000-000000000001', id, '2026-11-14 10:30+05:30', 'Padmanabhan'
+  from public.checklist_items where stage = 'before_check_in' and archived_at is null;
+insert into public.checklist_ticks (stay_id, item_id, created_at, created_by)
+select 'b0000000-0000-4000-8000-000000000002', id, '2026-11-19 17:00+05:30', 'Krishna Kumar'
+  from public.checklist_items where stage = 'before_check_in' and archived_at is null
+ order by sort_order limit 2;
+
+-- Tasks (in-app only) ----------------------------------------------------------
+insert into public.tasks (title, due_on, for_person, stay_id, done_at, done_by, created_at, created_by) values
+  ('Call the plumber about the bathroom tap', '2026-11-19', 'Padmanabhan',   null, null, null, '2026-11-17 09:00+05:30', 'Krishna Kumar'),
+  ('Buy a gas cylinder',                     '2026-11-21', 'Krishna Kumar', null, null, null, '2026-11-18 19:00+05:30', 'Padmanabhan'),
+  ('Ask Priya for their arrival time',       '2026-11-23', null, 'b0000000-0000-4000-8000-000000000002', null, null, '2026-11-18 19:05+05:30', 'Padmanabhan'),
+  ('Pay the electricity bill',               '2026-11-15', 'Krishna Kumar', null, '2026-11-15 11:00+05:30', 'Krishna Kumar', '2026-11-10 08:00+05:30', 'Krishna Kumar');
 
 -- Blocked dates (both days included) -----------------------------------------
 insert into public.blocked_dates (start_date, end_date, reason, created_by) values

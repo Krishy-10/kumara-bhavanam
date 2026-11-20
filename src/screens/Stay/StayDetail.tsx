@@ -23,6 +23,7 @@ import { formatPhone } from '@/lib/phone';
 import { downloadFile, shareFile, shareText } from '@/lib/share';
 import { cx } from '@/lib/cx';
 import { ChargeSheet, PaymentSheet, VoidSheet, type VoidTarget } from './MoneySheets';
+import { ChecklistCard, StayTasksCard, useChecklistLeft } from './ChecklistCard';
 import { CommissionCard } from './CommissionCard';
 import { ConfirmMove, IdCheckSheet, StatusSheet } from './StaySheets';
 
@@ -77,6 +78,7 @@ function StayBill({ stay }: { stay: StayRow }) {
   const removeId = useRemoveIdCheck(stay.stay_id);
   const settings = useSettings();
   const setStatus = useSetStatus();
+  const checklistLeft = useChecklistLeft(stay.stay_id);
   const { toast, show, hide } = useToast();
 
   const [sheet, setSheet] = useState<SheetName>(null);
@@ -109,9 +111,14 @@ function StayBill({ stay }: { stay: StayRow }) {
     }
   };
 
-  // Cancelling, and checking out with money still due, ask first.
+  // Cancelling asks first. Checking in or out with checklist items unticked,
+  // or out with money still due, warns but lets them go ahead.
   const move = (to: StayStatus) => {
-    if (to === 'cancelled' || (to === 'completed' && stay.balance > 0)) {
+    if (
+      to === 'cancelled' ||
+      (to === 'completed' && (stay.balance > 0 || checklistLeft.at_check_out > 0)) ||
+      (to === 'checked_in' && checklistLeft.before_check_in > 0)
+    ) {
       setSheet(null);
       setConfirming(to);
       return;
@@ -241,6 +248,8 @@ function StayBill({ stay }: { stay: StayRow }) {
         removing={removeId.isPending}
       />
 
+      <ChecklistCard stay={stay} onError={(text) => show({ text, tone: 'error' })} />
+
       {stay.referrer_id && <CommissionCard stay={stay} onVoid={setVoiding} onSaved={(text) => show({ text })} />}
 
       <div className="mx-4 mt-3 grid grid-cols-2 gap-2.5">
@@ -285,6 +294,8 @@ function StayBill({ stay }: { stay: StayRow }) {
         )}
       </div>
 
+      {stay.status !== 'cancelled' && <StayTasksCard stay={stay} onSaved={(text) => show({ text })} />}
+
       <Details stay={stay} />
 
       <PaymentSheet stay={stay} open={sheet === 'payment'} onClose={() => setSheet(null)} onSaved={(text) => show({ text })} />
@@ -295,7 +306,12 @@ function StayBill({ stay }: { stay: StayRow }) {
       <ConfirmMove
         stay={stay}
         to={confirming}
+        checklistLeft={confirming === 'checked_in' ? checklistLeft.before_check_in : confirming === 'completed' ? checklistLeft.at_check_out : 0}
         onClose={() => setConfirming(null)}
+        onShowChecklist={() => {
+          setConfirming(null);
+          document.getElementById('checklist')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
         onDone={afterMove}
         onAddPayment={() => {
           setConfirming(null);
